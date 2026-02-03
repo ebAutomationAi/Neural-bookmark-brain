@@ -1,0 +1,49 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: neural_bookmark_db
+    environment:
+      POSTGRES_USER: bookmark_user
+      POSTGRES_PASSWORD: bookmark_pass_2024
+      POSTGRES_DB: neural_bookmarks
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./scripts/init_db.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U bookmark_user -d neural_bookmarks"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - bookmark_network
+
+  api:
+    build: .
+    container_name: neural_bookmark_api
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql+asyncpg://bookmark_user:bookmark_pass_2024@postgres:5432/neural_bookmarks
+      GROQ_API_KEY: ${GROQ_API_KEY}
+      ENVIRONMENT: production
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./app:/app/app
+      - ./scripts:/app/scripts
+      - ./data:/app/data
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    networks:
+      - bookmark_network
+
+volumes:
+  postgres_data:
+
+networks:
+  bookmark_network:
+    driver: bridge
