@@ -1,0 +1,51 @@
+import os
+from pathlib import Path
+
+# Configuración
+SALIDA = "contexto_auditoria.txt"
+EXTENSIONES = ['.py', '.js', '.ts', '.html', '.css', '.sql', '.md', 'Dockerfile']
+IGNORAR_DIRS = ['.git', '__pycache__', 'node_modules', 'venv', '.idea', 'dist', 'build']
+
+def generar_contexto():
+    root = Path('.')
+    # Precompute lowercase sets for robust comparisons
+    suffixes_lower = {e.lower() for e in EXTENSIONES if e.startswith('.')}
+    names_lower = {e.lower() for e in EXTENSIONES if not e.startswith('.')}
+    ignorar_dirs_lower = {d.lower() for d in IGNORAR_DIRS}
+
+    with open(SALIDA, 'w', encoding='utf-8') as outfile:
+        outfile.write("# AUDIT CONTEXT - BOOKMARKS SYSTEM\n\n")
+        
+        for path in root.rglob('*'):
+            # Filtros
+            if not path.is_file(): continue
+            if any(part.lower() in ignorar_dirs_lower for part in path.parts): continue
+
+            # Evitar incluir el archivo de salida y este script
+            if path.name == "preparar_auditoria.py": continue
+            if path.name == SALIDA: continue
+
+            name_lower = path.name.lower()
+            suffix_lower = path.suffix.lower()
+
+            # Incluir si el nombre coincide (ej. Dockerfile) o la extensión coincide (caso-insensible)
+            if (name_lower not in names_lower) and (suffix_lower not in suffixes_lower):
+                continue
+
+            # Escribir en el archivo
+            try:
+                rel_path = path.relative_to(root)
+                content = path.read_text(encoding='utf-8', errors='ignore')
+                
+                outfile.write(f"{'='*50}\n")
+                outfile.write(f"FILE PATH: {rel_path}\n")
+                outfile.write(f"{'='*50}\n")
+                outfile.write(content + "\n\n")
+                print(f"✅ Agregado: {rel_path}")
+            except Exception as e:
+                print(f"❌ Error leyendo {path}: {e}")
+
+    print(f"\n✨ ¡Listo! Sube el archivo '{SALIDA}' a la Knowledge Base de MiniMax.")
+
+if __name__ == "__main__":
+    generar_contexto()
