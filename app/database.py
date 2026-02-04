@@ -1,6 +1,7 @@
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlalchemy.orm import declarative_base
 from sqlalchemy.pool import NullPool
+from sqlalchemy import text
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator
 from loguru import logger
@@ -8,17 +9,14 @@ from loguru import logger
 from app.config import get_settings
 
 settings = get_settings()
+Base = declarative_base()
 
-# Motor asíncrono
 engine = create_async_engine(
     settings.DATABASE_URL,
-    echo=not settings.is_production,
-    poolclass=NullPool if settings.ENVIRONMENT == "test" else None,
-    pool_size=10,
-    max_overflow=20,
+    poolclass=NullPool,
+    echo=False,
 )
 
-# Sesión asíncrona
 AsyncSessionLocal = async_sessionmaker(
     engine,
     class_=AsyncSession,
@@ -27,29 +25,22 @@ AsyncSessionLocal = async_sessionmaker(
     autoflush=False,
 )
 
-# Base declarativa
-Base = declarative_base()
-
-
 async def init_db():
-    """Inicializa la base de datos y crea tablas"""
-    try:
-        async with engine.begin() as conn:
-            # Habilitar extensión pgvector
-            await conn.execute("CREATE EXTENSION IF NOT EXISTS vector")
-            logger.info("Extensión pgvector habilitada")
-            
-            # Crear todas las tablas
-            await conn.run_sync(Base.metadata.create_all)
-            logger.info("Tablas creadas exitosamente")
-            
-    except Exception as e:
-        logger.error(f"Error inicializando base de datos: {e}")
-        raise
+    """Inicializa la base de datos"""
+    async with engine.begin() as conn:
+        # Crear extensión pgvector
+        await conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
+        logger.info("Extensión pgvector habilitada")
+        
+        # Crear tablas (sin checkfirst para forzar error si hay problema)
+        await conn.run_sync(Base.metadata.create_all)
+        logger.info("✅ Base de datos inicializada correctamente")
 
+async def close_db():
+    await engine.dispose()
+    logger.info("Conexión a base de datos cerrada")
 
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
-    """Dependency para obtener sesión de base de datos"""
     async with AsyncSessionLocal() as session:
         try:
             yield session
@@ -59,11 +50,9 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
             raise
         finally:
             await session.close()
-
 
 @asynccontextmanager
 async def get_db_context():
-    """Context manager para obtener sesión de base de datos"""
     async with AsyncSessionLocal() as session:
         try:
             yield session
@@ -73,9 +62,3 @@ async def get_db_context():
             raise
         finally:
             await session.close()
-
-
-async def close_db():
-    """Cierra el engine de la base de datos"""
-    await engine.dispose()
-    logger.info("Conexión a base de datos cerrada")
