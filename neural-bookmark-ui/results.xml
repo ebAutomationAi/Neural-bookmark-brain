@@ -1,0 +1,148 @@
+<testsuites id="" name="" tests="16" failures="16" skipped="0" errors="0" time="170.847277">
+<testsuite name="ui/comprehensive-ui.spec.ts" timestamp="2026-02-10T18:16:10.853Z" hostname="chromium" tests="16" failures="16" skipped="0" time="0.098" errors="0">
+<testcase name="🧪 Test Exhaustivo de Interfaz UI - COMPLETO Y CORREGIDO › ✅ Header: Verificar logo y título" classname="ui/comprehensive-ui.spec.ts" time="0.004">
+<failure message="comprehensive-ui.spec.ts:16:3 ✅ Header: Verificar logo y título" type="FAILURE">
+<![CDATA[  [chromium] › ui/comprehensive-ui.spec.ts:16:3 › 🧪 Test Exhaustivo de Interfaz UI - COMPLETO Y CORREGIDO › ✅ Header: Verificar logo y título 
+
+    Error: browserType.launch: Chromium distribution 'chrome' is not found at /opt/google/chrome/chrome
+    Run "npx playwright install chrome"
+]]>
+</failure>
+</testcase>
+<testcase name="🧪 Test Exhaustivo de Interfaz UI - COMPLETO Y CORREGIDO › ✅ Header: Verificar barra de búsqueda" classname="ui/comprehensive-ui.spec.ts" time="0.006">
+<failure message="comprehensive-ui.spec.ts:45:3 ✅ Header: Verificar barra de búsqueda" type="FAILURE">
+<![CDATA[  [chromium] › ui/comprehensive-ui.spec.ts:45:3 › 🧪 Test Exhaustivo de Interfaz UI - COMPLETO Y CORREGIDO › ✅ Header: Verificar barra de búsqueda 
+
+    Error: browserType.launch: Chromium distribution 'chrome' is not found at /opt/google/chrome/chrome
+    Run "npx playwright install chrome"
+]]>
+</failure>
+</testcase>
+<testcase name="🧪 Test Exhaustivo de Interfaz UI - COMPLETO Y CORREGIDO › ✅ Header: Verificar botón &quot;Nuevo Bookmark&quot;" classname="ui/comprehensive-ui.spec.ts" time="0.006">
+<failure message="comprehensive-ui.spec.ts:101:3 ✅ Header: Verificar botón &quot;Nuevo Bookmark&quot;" type="FAILURE">
+<![CDATA[  [chromium] › ui/comprehensive-ui.spec.ts:101:3 › 🧪 Test Exhaustivo de Interfaz UI - COMPLETO Y CORREGIDO › ✅ Header: Verificar botón "Nuevo Bookmark" 
+
+    Error: browserType.launch: Chromium distribution 'chrome' is not found at /opt/google/chrome/chrome
+    Run "npx playwright install chrome"
+]]>
+</failure>
+</testcase>
+<testcase name="🧪 Test Exhaustivo de Interfaz UI - COMPLETO Y CORREGIDO › ✅ Sidebar: Verificar todos los enlaces de navegación" classname="ui/comprehensive-ui.spec.ts" time="0.005">
+<failure message="comprehensive-ui.spec.ts:119:3 ✅ Sidebar: Verificar todos los enlaces de navegación" type="FAILURE">
+<![CDATA[  [chromium] › ui/comprehensive-ui.spec.ts:119:3 › 🧪 Test Exhaustivo de Interfaz UI - COMPLETO Y CORREGIDO › ✅ Sidebar: Verificar todos los enlaces de navegación 
+
+    Error: browserType.launch: Chromium distribution 'chrome' is not found at /opt/google/chrome/chrome
+    Run "npx playwright install chrome"
+]]>
+</failure>
+</testcase>
+<testcase name="🧪 Test Exhaustivo de Interfaz UI - COMPLETO Y CORREGIDO › ✅ Dashboard: Verificar tarjetas de estadísticas" classname="ui/comprehensive-ui.spec.ts" time="0.004">
+<failure message="comprehensive-ui.spec.ts:238:3 ✅ Dashboard: Verificar tarjetas de estadísticas" type="FAILURE">
+<![CDATA[  [chromium] › ui/comprehensive-ui.spec.ts:238:3 › 🧪 Test Exhaustivo de Interfaz UI - COMPLETO Y CORREGIDO › ✅ Dashboard: Verificar tarjetas de estadísticas 
+
+    Error: browserType.launch: Chromium distribution 'chrome' is not found at /opt/google/chrome/chrome
+    Run "npx playwright install chrome"
+]]>
+</failure>
+</testcase>
+<testcase name="🧪 Test Exhaustivo de Interfaz UI - COMPLETO Y CORREGIDO › ✅ Dashboard: Verificar barra de progreso" classname="ui/comprehensive-ui.spec.ts" time="0.004">
+<failure message="comprehensive-ui.spec.ts:264:3 ✅ Dashboard: Verificar barra de progreso" type="FAILURE">
+<![CDATA[  [chromium] › ui/comprehensive-ui.spec.ts:264:3 › 🧪 Test Exhaustivo de Interfaz UI - COMPLETO Y CORREGIDO › ✅ Dashboard: Verificar barra de progreso 
+
+    Error: browserType.launch: Chromium distribution 'chrome' is not found at /opt/google/chrome/chrome
+    Run "npx playwright install chrome"
+]]>
+</failure>
+</testcase>
+<testcase name="🧪 Test Exhaustivo de Interfaz UI - COMPLETO Y CORREGIDO › ✅ Dashboard: Verificar sección de últimos bookmarks" classname="ui/comprehensive-ui.spec.ts" time="0.01">
+<failure message="comprehensive-ui.spec.ts:292:3 ✅ Dashboard: Verificar sección de últimos bookmarks" type="FAILURE">
+<![CDATA[  [chromium] › ui/comprehensive-ui.spec.ts:292:3 › 🧪 Test Exhaustivo de Interfaz UI - COMPLETO Y CORREGIDO › ✅ Dashboard: Verificar sección de últimos bookmarks 
+
+    Error: browserType.launch: Chromium distribution 'chrome' is not found at /opt/google/chrome/chrome
+    Run "npx playwright install chrome"
+]]>
+</failure>
+</testcase>
+<testcase name="🧪 Test Exhaustivo de Interfaz UI - COMPLETO Y CORREGIDO › ✅ Bookmarks Page: Verificar búsqueda" classname="ui/comprehensive-ui.spec.ts" time="0.006">
+<failure message="comprehensive-ui.spec.ts:383:3 ✅ Bookmarks Page: Verificar búsqueda" type="FAILURE">
+<![CDATA[  [chromium] › ui/comprehensive-ui.spec.ts:383:3 › 🧪 Test Exhaustivo de Interfaz UI - COMPLETO Y CORREGIDO › ✅ Bookmarks Page: Verificar búsqueda 
+
+    Error: browserType.launch: Chromium distribution 'chrome' is not found at /opt/google/chrome/chrome
+    Run "npx playwright install chrome"
+]]>
+</failure>
+</testcase>
+<testcase name="🧪 Test Exhaustivo de Interfaz UI - COMPLETO Y CORREGIDO › ✅ Bookmarks Page: Verificar modal de agregar bookmark" classname="ui/comprehensive-ui.spec.ts" time="0.01">
+<failure message="comprehensive-ui.spec.ts:427:3 ✅ Bookmarks Page: Verificar modal de agregar bookmark" type="FAILURE">
+<![CDATA[  [chromium] › ui/comprehensive-ui.spec.ts:427:3 › 🧪 Test Exhaustivo de Interfaz UI - COMPLETO Y CORREGIDO › ✅ Bookmarks Page: Verificar modal de agregar bookmark 
+
+    Error: browserType.launch: Chromium distribution 'chrome' is not found at /opt/google/chrome/chrome
+    Run "npx playwright install chrome"
+]]>
+</failure>
+</testcase>
+<testcase name="🧪 Test Exhaustivo de Interfaz UI - COMPLETO Y CORREGIDO › ✅ Search Page: Verificar funcionalidad completa" classname="ui/comprehensive-ui.spec.ts" time="0.01">
+<failure message="comprehensive-ui.spec.ts:516:3 ✅ Search Page: Verificar funcionalidad completa" type="FAILURE">
+<![CDATA[  [chromium] › ui/comprehensive-ui.spec.ts:516:3 › 🧪 Test Exhaustivo de Interfaz UI - COMPLETO Y CORREGIDO › ✅ Search Page: Verificar funcionalidad completa 
+
+    Error: browserType.launch: Chromium distribution 'chrome' is not found at /opt/google/chrome/chrome
+    Run "npx playwright install chrome"
+]]>
+</failure>
+</testcase>
+<testcase name="🧪 Test Exhaustivo de Interfaz UI - COMPLETO Y CORREGIDO › ✅ Statistics Page: Verificar secciones" classname="ui/comprehensive-ui.spec.ts" time="0.004">
+<failure message="comprehensive-ui.spec.ts:556:3 ✅ Statistics Page: Verificar secciones" type="FAILURE">
+<![CDATA[  [chromium] › ui/comprehensive-ui.spec.ts:556:3 › 🧪 Test Exhaustivo de Interfaz UI - COMPLETO Y CORREGIDO › ✅ Statistics Page: Verificar secciones 
+
+    Error: browserType.launch: Chromium distribution 'chrome' is not found at /opt/google/chrome/chrome
+    Run "npx playwright install chrome"
+]]>
+</failure>
+</testcase>
+<testcase name="🧪 Test Exhaustivo de Interfaz UI - COMPLETO Y CORREGIDO › ✅ Bookmark Cards: Verificar interacción completa" classname="ui/comprehensive-ui.spec.ts" time="0.006">
+<failure message="comprehensive-ui.spec.ts:595:3 ✅ Bookmark Cards: Verificar interacción completa" type="FAILURE">
+<![CDATA[  [chromium] › ui/comprehensive-ui.spec.ts:595:3 › 🧪 Test Exhaustivo de Interfaz UI - COMPLETO Y CORREGIDO › ✅ Bookmark Cards: Verificar interacción completa 
+
+    Error: browserType.launch: Chromium distribution 'chrome' is not found at /opt/google/chrome/chrome
+    Run "npx playwright install chrome"
+]]>
+</failure>
+</testcase>
+<testcase name="🧪 Test Exhaustivo de Interfaz UI - COMPLETO Y CORREGIDO › ✅ Mobile: Verificar toggle de sidebar" classname="ui/comprehensive-ui.spec.ts" time="0.004">
+<failure message="comprehensive-ui.spec.ts:682:3 ✅ Mobile: Verificar toggle de sidebar" type="FAILURE">
+<![CDATA[  [chromium] › ui/comprehensive-ui.spec.ts:682:3 › 🧪 Test Exhaustivo de Interfaz UI - COMPLETO Y CORREGIDO › ✅ Mobile: Verificar toggle de sidebar 
+
+    Error: browserType.launch: Chromium distribution 'chrome' is not found at /opt/google/chrome/chrome
+    Run "npx playwright install chrome"
+]]>
+</failure>
+</testcase>
+<testcase name="🧪 Test Exhaustivo de Interfaz UI - COMPLETO Y CORREGIDO › ✅ Toasts: Verificar sistema de notificaciones" classname="ui/comprehensive-ui.spec.ts" time="0.01">
+<failure message="comprehensive-ui.spec.ts:717:3 ✅ Toasts: Verificar sistema de notificaciones" type="FAILURE">
+<![CDATA[  [chromium] › ui/comprehensive-ui.spec.ts:717:3 › 🧪 Test Exhaustivo de Interfaz UI - COMPLETO Y CORREGIDO › ✅ Toasts: Verificar sistema de notificaciones 
+
+    Error: browserType.launch: Chromium distribution 'chrome' is not found at /opt/google/chrome/chrome
+    Run "npx playwright install chrome"
+]]>
+</failure>
+</testcase>
+<testcase name="🧪 Test Exhaustivo de Interfaz UI - COMPLETO Y CORREGIDO › ✅ Accesibilidad: Verificar atributos ARIA" classname="ui/comprehensive-ui.spec.ts" time="0.004">
+<failure message="comprehensive-ui.spec.ts:728:3 ✅ Accesibilidad: Verificar atributos ARIA" type="FAILURE">
+<![CDATA[  [chromium] › ui/comprehensive-ui.spec.ts:728:3 › 🧪 Test Exhaustivo de Interfaz UI - COMPLETO Y CORREGIDO › ✅ Accesibilidad: Verificar atributos ARIA 
+
+    Error: browserType.launch: Chromium distribution 'chrome' is not found at /opt/google/chrome/chrome
+    Run "npx playwright install chrome"
+]]>
+</failure>
+</testcase>
+<testcase name="🧪 Test Exhaustivo de Interfaz UI - COMPLETO Y CORREGIDO › ✅ Error Handling: Verificar mensajes de error" classname="ui/comprehensive-ui.spec.ts" time="0.005">
+<failure message="comprehensive-ui.spec.ts:751:3 ✅ Error Handling: Verificar mensajes de error" type="FAILURE">
+<![CDATA[  [chromium] › ui/comprehensive-ui.spec.ts:751:3 › 🧪 Test Exhaustivo de Interfaz UI - COMPLETO Y CORREGIDO › ✅ Error Handling: Verificar mensajes de error 
+
+    Error: browserType.launch: Chromium distribution 'chrome' is not found at /opt/google/chrome/chrome
+    Run "npx playwright install chrome"
+]]>
+</failure>
+</testcase>
+</testsuite>
+</testsuites>

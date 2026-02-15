@@ -1,0 +1,47 @@
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    container_name: neural_bookmark_db
+    environment:
+      POSTGRES_USER: bookmark_user
+      POSTGRES_PASSWORD: bookmark_pass_2024
+      POSTGRES_DB: neural_bookmarks
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U bookmark_user -d neural_bookmarks"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - bookmark_network
+
+  api:
+    build: .
+    container_name: neural_bookmark_api
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file:  # ← CARGAR VARIABLES DESDE .env DEL HOST
+      - .env
+    environment:  # ← SOBREESCRIBIR VARIABLES ESPECÍFICAS SI ES NECESARIO
+      DATABASE_URL: postgresql+asyncpg://bookmark_user:bookmark_pass_2024@db:5432/neural_bookmarks
+      ENVIRONMENT: production
+    ports:
+      - "8090:8000"  # HOST:8090 → CONTAINER:8000
+    volumes:
+      - ./app:/app/app
+      - ./scripts:/app/scripts
+      - ./data:/app/data
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    networks:
+      - bookmark_network
+
+volumes:
+  postgres_data:
+
+networks:
+  bookmark_network:
+    driver: bridge
