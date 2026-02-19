@@ -65,7 +65,7 @@ htmlcov/
 *.bak
 *.backup
 
-*.txt
+doc_txt/
 
 .zencoder/
 .zenflow/

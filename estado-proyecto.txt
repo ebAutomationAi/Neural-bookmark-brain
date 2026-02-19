@@ -1,0 +1,1250 @@
+Estado del Proyecto: Neural Bookmark Brain
+Resumen Ejecutivo
+Sistema COMPLETO Y FUNCIONAL de gestión inteligente de bookmarks con IA. Version 1.0.0, ~3,500 líneas de código, 24 archivos principales.
+Stack: FastAPI + PostgreSQL/pgvector + Groq (Llama 3.1) + Sentence Transformers + Docker
+Funcionalidad核心:
+
+Importa bookmarks desde CSV
+Scraping automático del contenido web
+Análisis con IA (resúmenes, tags, categorías)
+Búsqueda semántica con embeddings vectoriales
+Detección NSFW y URLs locales
+
+
+Componentes Críticos
+1. Sistema Dual de Agentes (app/agents.py)
+ArchivistAgent → Scraping + Validación + NSFW
+        ↓
+CuratorAgent → Resúmenes + Tags + Embeddings (384D)
+        ↓
+PostgreSQL/pgvector → Búsqueda vectorial
+2. API REST (18 endpoints activos)
+
+POST /search - Búsqueda semántica
+GET /bookmarks - Listado con filtros
+GET /stats/* - Analytics
+Docs: http://localhost:8000/docs
+
+3. Base de Datos
+
+Tabla bookmarks: 25+ columnas, vector[384]
+Índices: IVFFlat (vectores), GIN (arrays), B-tree
+Estados: pending → processing → completed/failed
+
+
+Puntos de Dolor Identificados
+Limitaciones Actuales:
+
+Sin interfaz web - Solo API + Swagger
+Importación manual - Requiere ejecutar script
+Sin autenticación - Base de datos abierta
+Procesamiento secuencial - Batch de 10 bookmarks
+Sin cache - Cada búsqueda golpea la DB
+Embeddings fijos - No fine-tuning específico del usuario
+Sin exportación - No hay forma de sacar datos a Notion/Obsidian
+
+Deuda Técnica:
+
+❌ Tests unitarios/integración ausentes
+❌ Rate limiting no implementado
+❌ Logs no persistentes (solo stdout)
+❌ Backup/restore manual
+⚠️ Dependencia única de Groq (sin fallback)
+
+
+Roadmap Sugerido
+Fase 1: Estabilización (1-2 semanas)
+python# Prioridad ALTA
+1. Tests básicos (pytest)
+   - test_agents.py
+   - test_api_endpoints.py
+   - test_search_accuracy.py
+
+2. Monitoreo
+   - Prometheus metrics
+   - Logs estructurados a archivo
+   - Health checks mejorados
+
+3. Rate limiting
+   - Por IP en /search
+   - Por día en import_csv
+Fase 2: UX Básica (2-3 semanas)
+typescript// Frontend minimalista con React
+4. Dashboard web
+   - Búsqueda en tiempo real
+   - Visualización de bookmarks
+   - Filtros por categoría/tags
+
+5. Browser extension (Chrome/Firefox)
+   - Captura con 1 click
+   - Auto-procesamiento en background
+Fase 3: Productivización (3-4 semanas)
+bash6. Multi-tenant
+   - Auth con JWT
+   - Bookmarks por usuario
+   - Cuotas y límites
+
+7. Optimizaciones
+   - Redis para cache de búsquedas
+   - Queue system (Celery/RQ) para procesamiento
+   - CDN para assets estáticos
+
+8. Exportación
+   - API endpoint /export (JSON, Markdown, HTML)
+   - Integración Notion API
+   - Webhook a Obsidian
+
+Quick Wins (Implementables HOY)
+1. Agregar endpoint de re-embedding masivo
+python# app/main.py
+@app.post("/admin/reembed-all")
+async def reembed_all_bookmarks(db: AsyncSession = Depends(get_db)):
+    """Re-genera embeddings para todos los bookmarks"""
+    bookmarks = await db.execute(
+        select(Bookmark).where(Bookmark.status == "completed")
+    )
+    
+    for bookmark in bookmarks.scalars():
+        text = f"{bookmark.clean_title}. {bookmark.summary}"
+        bookmark.embedding = embedding_service.generate_embedding(text)
+    
+    await db.commit()
+    return {"status": "success", "count": len(bookmarks)}
+2. Exportar a JSON/Markdown
+python@app.get("/export/json")
+async def export_json(db: AsyncSession = Depends(get_db)):
+    bookmarks = await db.execute(select(Bookmark))
+    data = [b.to_dict() for b in bookmarks.scalars()]
+    return JSONResponse(content=data)
+
+@app.get("/export/markdown")
+async def export_markdown(db: AsyncSession = Depends(get_db)):
+    bookmarks = await db.execute(select(Bookmark))
+    md = "# My Bookmarks\n\n"
+    for b in bookmarks.scalars():
+        md += f"## {b.clean_title}\n"
+        md += f"- **URL**: {b.url}\n"
+        md += f"- **Category**: {b.category}\n"
+        md += f"- **Tags**: {', '.join(b.tags)}\n\n"
+        md += f"{b.summary}\n\n---\n\n"
+    
+    return Response(content=md, media_type="text/markdown")
+3. Búsqueda híbrida (keywords + semántica)
+python# Combinar full-text search con vectores
+@app.post("/search/hybrid")
+async def hybrid_search(query: str, db: AsyncSession = Depends(get_db)):
+    # Búsqueda semántica
+    embedding = embedding_service.generate_query_embedding(query)
+    semantic_results = await db.execute(
+        select(Bookmark)
+        .order_by(Bookmark.embedding.cosine_distance(embedding))
+        .limit(20)
+    )
+    
+    # Búsqueda por keywords en título/tags
+    keyword_results = await db.execute(
+        select(Bookmark)
+        .where(
+            or_(
+                Bookmark.clean_title.ilike(f"%{query}%"),
+                Bookmark.tags.contains([query.lower()])
+            )
+        )
+        .limit(20)
+    )
+    
+    # Merge y deduplicar
+    ...
+
+Comandos para Retomar
+bash# 1. Levantar sistema
+docker-compose up -d
+
+# 2. Verificar salud
+curl http://localhost:8000/health
+
+# 3. Ver stats actuales
+curl http://localhost:8000/stats/processing
+
+# 4. Probar búsqueda
+curl -X POST "http://localhost:8000/search" \
+  -H "Content-Type: application/json" \
+  -d '{"query": "python tutorials", "limit": 5}'
+
+# 5. Ver logs
+docker-compose logs -f api
+
+
+
+¿Objetivo principal? 
+* Hacer más robusto (tests, monitoreo)
+
+¿Usuarios target? 
+* al principio yo pero luego sacar beneficios y por lo tanto :Público general (SaaS)
+
+¿Limitaciones actuales más críticas? 
+* Por comprobar 
+
+creo que primero deberiamos testear el proyecto, y a partir de ahi se va mirando
+
+
+Plan de Testing: Neural Bookmark Brain
+Estrategia de Validación (3 Fases)
+Fase 1 (HOY): Tests manuales → Identificar bugs críticos
+Fase 2 (Esta semana): Tests automatizados → Cobertura básica
+Fase 3 (Próxima semana): CI/CD → Preparar para SaaS
+
+FASE 1: Validación Manual Inmediata
+Checklist de Funcionamiento (30 min)
+Crea este script de test manual:
+bash# tests/manual/smoke_test.sh
+#!/bin/bash
+set -e
+
+echo "🔥 SMOKE TEST - Neural Bookmark Brain"
+echo "======================================"
+
+# 1. Sistema levantado
+echo "✓ Verificando containers..."
+docker-compose ps | grep -q "Up" || exit 1
+
+# 2. Health check
+echo "✓ Health check..."
+curl -f http://localhost:8000/health || exit 1
+
+# 3. Importar CSV pequeño
+echo "✓ Importando 3 bookmarks de prueba..."
+cat > /tmp/test_bookmarks.csv << EOF
+url,title
+https://fastapi.tiangolo.com,FastAPI Docs
+https://www.postgresql.org,PostgreSQL
+https://github.com/pgvector/pgvector,pgvector
+EOF
+
+docker-compose exec -T api python scripts/import_csv.py /tmp/test_bookmarks.csv 3
+
+# 4. Esperar procesamiento
+echo "⏳ Esperando procesamiento (30s)..."
+sleep 30
+
+# 5. Verificar stats
+echo "✓ Verificando stats..."
+COMPLETED=$(curl -s http://localhost:8000/stats/processing | jq .completed)
+if [ "$COMPLETED" -lt 1 ]; then
+    echo "❌ No hay bookmarks completados"
+    exit 1
+fi
+
+# 6. Búsqueda semántica
+echo "✓ Probando búsqueda semántica..."
+RESULTS=$(curl -s -X POST http://localhost:8000/search \
+    -H "Content-Type: application/json" \
+    -d '{"query":"python web framework","limit":5}' | jq .total)
+
+if [ "$RESULTS" -lt 1 ]; then
+    echo "❌ Búsqueda no retorna resultados"
+    exit 1
+fi
+
+echo ""
+echo "✅ TODOS LOS TESTS PASARON"
+echo "Bookmarks completados: $COMPLETED"
+echo "Resultados de búsqueda: $RESULTS"
+Ejecutar:
+bashchmod +x tests/manual/smoke_test.sh
+./tests/manual/smoke_test.sh
+```
+
+---
+
+## **FASE 2: Tests Automatizados (Pytest)**
+
+### **Estructura de Archivos**
+```
+tests/
+├── __init__.py
+├── conftest.py              # Fixtures compartidas
+├── unit/
+│   ├── test_validators.py   # URLs, texto, datos
+│   ├── test_classifier.py   # NSFW detection
+│   ├── test_embeddings.py   # Vectores
+│   └── test_scraper.py      # Web scraping
+├── integration/
+│   ├── test_agents.py       # Flujo completo agentes
+│   ├── test_database.py     # CRUD operations
+│   └── test_api.py          # Endpoints
+└── e2e/
+    └── test_import_flow.py  # CSV → DB → Search
+1. Setup Inicial
+bash# Instalar dependencias de testing
+pip install pytest pytest-asyncio pytest-cov httpx
+python# tests/conftest.py
+import pytest
+import asyncio
+from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
+from app.database import Base
+from app.config import get_settings
+
+settings = get_settings()
+
+# Database de prueba
+TEST_DATABASE_URL = "postgresql+asyncpg://bookmark_user:bookmark_pass_2024@localhost:5432/neural_bookmarks_test"
+
+@pytest.fixture(scope="session")
+def event_loop():
+    """Event loop para tests async"""
+    loop = asyncio.get_event_loop_policy().new_event_loop()
+    yield loop
+    loop.close()
+
+@pytest.fixture(scope="function")
+async def db_session():
+    """Session de DB limpia para cada test"""
+    engine = create_async_engine(TEST_DATABASE_URL, echo=False)
+    
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.drop_all)
+        await conn.run_sync(Base.metadata.create_all)
+        await conn.execute("CREATE EXTENSION IF NOT EXISTS vector")
+    
+    async_session = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+    
+    async with async_session() as session:
+        yield session
+    
+    await engine.dispose()
+
+@pytest.fixture
+def sample_bookmark_data():
+    """Datos de prueba reutilizables"""
+    return {
+        "url": "https://example.com/test",
+        "title": "Test Article",
+        "text": "This is a sample text about machine learning and Python.",
+    }
+2. Tests Unitarios Críticos
+python# tests/unit/test_validators.py
+import pytest
+from app.utils.validators import URLValidator, TextValidator
+
+class TestURLValidator:
+    def test_valid_url(self):
+        is_valid, normalized, error = URLValidator.validate_and_normalize("https://example.com")
+        assert is_valid is True
+        assert normalized == "https://example.com"
+        assert error is None
+    
+    def test_url_without_scheme(self):
+        is_valid, normalized, error = URLValidator.validate_and_normalize("example.com")
+        assert is_valid is True
+        assert normalized == "https://example.com"
+    
+    def test_invalid_url(self):
+        is_valid, _, error = URLValidator.validate_and_normalize("not a url")
+        assert is_valid is False
+        assert error is not None
+    
+    def test_local_url_detection(self):
+        domain = URLValidator.extract_domain("http://localhost:8080")
+        assert domain == "localhost:8080"
+
+class TestTextValidator:
+    def test_clean_text(self):
+        dirty = "Text  with\tmultiple\nspaces"
+        clean = TextValidator.clean_text(dirty)
+        assert clean == "Text with multiple spaces"
+    
+    def test_truncate(self):
+        long_text = "a" * 100
+        truncated = TextValidator.truncate(long_text, 50)
+        assert len(truncated) == 50
+        assert truncated.endswith("...")
+    
+    def test_meaningful_text(self):
+        assert TextValidator.is_meaningful_text("This is a test sentence with enough words", min_words=5)
+        assert not TextValidator.is_meaningful_text("Short", min_words=5)
+python# tests/unit/test_classifier.py
+import pytest
+from app.services.classifier import SafetyClassifier
+
+class TestSafetyClassifier:
+    @pytest.fixture
+    def classifier(self):
+        return SafetyClassifier()
+    
+    def test_nsfw_domain_detection(self, classifier):
+        is_nsfw, reason = classifier.classify(
+            url="https://pornhub.com/video",
+            title="Video",
+            text=""
+        )
+        assert is_nsfw is True
+        assert "Dominio NSFW" in reason
+    
+    def test_nsfw_keyword_in_url(self, classifier):
+        is_nsfw, reason = classifier.classify(
+            url="https://example.com/adult/content",
+            title="Content",
+            text=""
+        )
+        assert is_nsfw is True
+        assert "Keyword NSFW en URL" in reason
+    
+    def test_clean_content(self, classifier):
+        is_nsfw, reason = classifier.classify(
+            url="https://example.com",
+            title="Clean Article",
+            text="This is a normal article about technology."
+        )
+        assert is_nsfw is False
+        assert reason is None
+    
+    def test_keyword_threshold(self, classifier):
+        # 1 keyword no debería marcar como NSFW
+        is_nsfw, _ = classifier._check_text("This mentions adult once", "test")
+        assert is_nsfw is False
+        
+        # 2+ keywords sí
+        is_nsfw, reason = classifier._check_text("This has adult and xxx content", "test")
+        assert is_nsfw is True
+python# tests/unit/test_embeddings.py
+import pytest
+import numpy as np
+from app.services.embeddings import EmbeddingService
+
+class TestEmbeddingService:
+    @pytest.fixture
+    def service(self):
+        return EmbeddingService()
+    
+    def test_generate_embedding(self, service):
+        text = "Machine learning is a subset of artificial intelligence"
+        embedding = service.generate_embedding(text)
+        
+        assert isinstance(embedding, list)
+        assert len(embedding) == service.dimension  # 384
+        assert all(isinstance(x, float) for x in embedding)
+    
+    def test_empty_text_returns_zero_vector(self, service):
+        embedding = service.generate_embedding("")
+        assert embedding == [0.0] * service.dimension
+    
+    def test_similarity_calculation(self, service):
+        emb1 = service.generate_embedding("Python programming language")
+        emb2 = service.generate_embedding("Python for developers")
+        emb3 = service.generate_embedding("Cooking recipes")
+        
+        sim_similar = service.calculate_similarity(emb1, emb2)
+        sim_different = service.calculate_similarity(emb1, emb3)
+        
+        assert 0 <= sim_similar <= 1
+        assert 0 <= sim_different <= 1
+        assert sim_similar > sim_different  # Textos similares = mayor score
+    
+    def test_batch_embeddings(self, service):
+        texts = ["Text 1", "Text 2", "Text 3"]
+        embeddings = service.generate_batch_embeddings(texts)
+        
+        assert len(embeddings) == 3
+        assert all(len(emb) == service.dimension for emb in embeddings)
+3. Tests de Integración
+python# tests/integration/test_agents.py
+import pytest
+from app.agents import ArchivistAgent, CuratorAgent, AgentOrchestrator
+
+class TestArchivistAgent:
+    @pytest.mark.asyncio
+    async def test_process_valid_url(self):
+        agent = ArchivistAgent()
+        result = await agent.process(
+            url="https://fastapi.tiangolo.com",
+            original_title="FastAPI"
+        )
+        
+        assert result["success"] is True
+        assert result["clean_title"] is not None
+        assert result["full_text"] is not None
+        assert result["is_nsfw"] is False
+        assert result["domain"] == "tiangolo.com"
+    
+    @pytest.mark.asyncio
+    async def test_process_local_url(self):
+        agent = ArchivistAgent()
+        result = await agent.process(
+            url="http://localhost:3000",
+            original_title="Local App"
+        )
+        
+        assert result["is_local"] is True
+        assert "local" in result["error"].lower()
+
+class TestCuratorAgent:
+    @pytest.mark.asyncio
+    async def test_process_with_valid_text(self):
+        agent = CuratorAgent()
+        result = await agent.process(
+            clean_title="Introduction to Machine Learning",
+            full_text="Machine learning is a method of data analysis that automates analytical model building. It is a branch of artificial intelligence based on the idea that systems can learn from data, identify patterns and make decisions with minimal human intervention.",
+            url="https://example.com"
+        )
+        
+        assert result["success"] is True
+        assert result["summary"] is not None
+        assert len(result["tags"]) > 0
+        assert result["category"] is not None
+        assert result["embedding"] is not None
+        assert len(result["embedding"]) == 384
+    
+    @pytest.mark.asyncio
+    async def test_process_with_insufficient_text(self):
+        agent = CuratorAgent()
+        result = await agent.process(
+            clean_title="Short",
+            full_text="Too short",
+            url="https://example.com"
+        )
+        
+        assert result["success"] is False
+        assert "insuficiente" in result["error"].lower()
+
+class TestAgentOrchestrator:
+    @pytest.mark.asyncio
+    async def test_full_processing_flow(self):
+        orchestrator = AgentOrchestrator()
+        result = await orchestrator.process_bookmark(
+            url="https://www.python.org",
+            original_title="Python"
+        )
+        
+        # Verificar que pase por ambos agentes
+        assert "clean_title" in result
+        assert "summary" in result or result["status"] == "failed"
+        assert "processing_time" in result
+        assert result["processing_time"] > 0
+python# tests/integration/test_api.py
+import pytest
+from httpx import AsyncClient
+from app.main import app
+
+@pytest.mark.asyncio
+async def test_health_endpoint():
+    async with AsyncClient(app=app, base_url="http://test") as client:
+        response = await client.get("/health")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["status"] in ["healthy", "degraded"]
+
+@pytest.mark.asyncio
+async def test_search_endpoint(db_session):
+    # Pre-poblar DB con bookmark de prueba
+    from app.models import Bookmark
+    from app.services.embeddings import get_embedding_service
+    
+    embedding_service = get_embedding_service()
+    
+    bookmark = Bookmark(
+        url="https://test.com",
+        original_title="Test",
+        clean_title="Python Tutorial",
+        summary="Learn Python programming",
+        tags=["python", "programming"],
+        category="Programación",
+        status="completed",
+        embedding=embedding_service.generate_embedding("Python Tutorial. Learn Python programming")
+    )
+    db_session.add(bookmark)
+    await db_session.commit()
+    
+    # Test búsqueda
+    async with AsyncClient(app=app, base_url="http://test") as client:
+        response = await client.post(
+            "/search",
+            json={"query": "python tutorial", "limit": 5}
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["total"] >= 1
+        assert len(data["results"]) >= 1
+
+@pytest.mark.asyncio
+async def test_stats_endpoint():
+    async with AsyncClient(app=app, base_url="http://test") as client:
+        response = await client.get("/stats/processing")
+        assert response.status_code == 200
+        data = response.json()
+        assert "total" in data
+        assert "completed" in data
+4. Ejecutar Tests
+bash# Crear DB de prueba
+docker-compose exec postgres psql -U bookmark_user -c "CREATE DATABASE neural_bookmarks_test;"
+docker-compose exec postgres psql -U bookmark_user neural_bookmarks_test -c "CREATE EXTENSION vector;"
+
+# Ejecutar todos los tests
+pytest tests/ -v
+
+# Con coverage
+pytest tests/ --cov=app --cov-report=html --cov-report=term
+
+# Solo tests rápidos (unit)
+pytest tests/unit/ -v
+
+# Solo tests lentos (integration)
+pytest tests/integration/ -v -s
+
+# Test específico
+pytest tests/unit/test_validators.py::TestURLValidator::test_valid_url -v
+
+FASE 3: Integración Continua (GitHub Actions)
+yaml# .github/workflows/tests.yml
+name: Tests
+
+on: [push, pull_request]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: bookmark_user
+          POSTGRES_PASSWORD: bookmark_pass_2024
+          POSTGRES_DB: neural_bookmarks_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+    
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+          pip install pytest pytest-asyncio pytest-cov
+      
+      - name: Run tests
+        env:
+          DATABASE_URL: postgresql+asyncpg://bookmark_user:bookmark_pass_2024@localhost:5432/neural_bookmarks_test
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+        run: |
+          pytest tests/ --cov=app --cov-report=xml
+      
+      - name: Upload coverage
+        uses: codecov/codecov-action@v3
+        with:
+          file: ./coverage.xml
+
+Próximos Pasos Sugeridos
+
+HOY: Ejecutar smoke test manual
+Mañana: Implementar tests unitarios (validators, classifier, embeddings)
+Día 3-4: Tests de integración (agents, API)
+Día 5: CI/CD con GitHub Actions
+Semana 2: Monitoreo (Prometheus + Grafana)
+
+¿Empezamos con el smoke test manual o prefieres saltar directo a pytest?
+
+
+
+
+un cosa muy importante:
+esta applicaciones se desplegara en WINDOWS 11.
+por lo tanto todos los tests, y demas deben tener el foco en que se va a desplegar en windows 11
+
+
+
+Plan de Testing para Windows 11
+⚠️ ANÁLISIS CRÍTICO: Compatibilidad Windows
+Problemas Identificados en el Código Actual
+python# ❌ PROBLEMAS EN EL CÓDIGO EXISTENTE
+
+# 1. scripts/import_csv.py - Rutas hardcodeadas Linux
+sys.path.insert(0, str(Path(__file__).parent.parent))  # ✅ OK (Path es multiplataforma)
+
+# 2. Makefile - NO FUNCIONA EN WINDOWS
+# Todo el Makefile usa comandos bash
+
+# 3. Scripts .sh - NO EJECUTABLES EN WINDOWS
+# chmod +x tests/manual/smoke_test.sh  # ❌ No existe chmod en Windows
+
+# 4. Docker Compose - Volúmenes con rutas Linux
+# docker-compose.yml puede tener problemas con paths
+```
+
+---
+
+## **DECISIÓN ARQUITECTÓNICA: 3 Opciones**
+
+### **Opción 1: Docker Desktop + WSL2 (RECOMENDADO)**
+```
+✅ Ventajas:
+- Código actual funciona sin cambios
+- PostgreSQL + pgvector aislado
+- Portabilidad (desarrollo → producción)
+- Mismo entorno que Linux
+
+❌ Desventajas:
+- Requiere WSL2 habilitado
+- Consumo de RAM (4GB+)
+- Docker Desktop a veces lento en Windows
+```
+
+### **Opción 2: Nativo en Windows (Python + PostgreSQL)**
+```
+✅ Ventajas:
+- Máximo rendimiento
+- No overhead de virtualización
+- Control total del entorno
+
+❌ Desventajas:
+- PostgreSQL + pgvector instalación manual
+- Dependencias pueden fallar (trafilatura, etc)
+- Scripts necesitan reescritura total
+- Diferencias PATH/variables entorno
+```
+
+### **Opción 3: Híbrido (PostgreSQL en Docker, Python nativo)**
+```
+✅ Ventajas:
+- PostgreSQL aislado con pgvector
+- Python nativo = mejor debugging
+- Balance performance/compatibilidad
+
+❌ Desventajas:
+- Configuración mixta compleja
+- Networking entre Docker/host
+
+RECOMENDACIÓN: Opción 1 (Docker Desktop + WSL2)
+Setup Inicial en Windows 11
+powershell# PowerShell como Administrador
+
+# 1. Habilitar WSL2
+wsl --install
+
+# 2. Instalar Docker Desktop
+# Descargar de: https://www.docker.com/products/docker-desktop/
+# ✅ IMPORTANTE: Habilitar "Use WSL 2 based engine" en Settings
+
+# 3. Verificar instalación
+docker --version
+docker-compose --version
+wsl --list --verbose
+
+# 4. Configurar límites de memoria para WSL2
+# Crear archivo: C:\Users\TuUsuario\.wslconfig
+@"
+[wsl2]
+memory=8GB
+processors=4
+swap=2GB
+"@ | Out-File -FilePath "$env:USERPROFILE\.wslconfig" -Encoding ASCII
+
+# 5. Reiniciar WSL
+wsl --shutdown
+
+FASE 1: Tests Manuales para Windows
+1.1 Script PowerShell de Smoke Test
+powershell# tests/manual/smoke_test.ps1
+param(
+    [string]$BaseUrl = "http://localhost:8000"
+)
+
+Write-Host "🔥 SMOKE TEST - Neural Bookmark Brain (Windows 11)" -ForegroundColor Cyan
+Write-Host "=" * 60
+
+# 1. Verificar Docker Desktop
+Write-Host "✓ Verificando Docker Desktop..." -ForegroundColor Green
+$dockerRunning = docker info 2>&1 | Select-String "Server Version"
+if (-not $dockerRunning) {
+    Write-Host "❌ Docker Desktop no está corriendo" -ForegroundColor Red
+    Write-Host "   Inicia Docker Desktop desde el menú de Windows" -ForegroundColor Yellow
+    exit 1
+}
+
+# 2. Verificar containers
+Write-Host "✓ Verificando containers..." -ForegroundColor Green
+$containers = docker-compose ps --format json | ConvertFrom-Json
+$apiRunning = $containers | Where-Object { $_.Service -eq "api" -and $_.State -eq "running" }
+if (-not $apiRunning) {
+    Write-Host "❌ Container API no está corriendo" -ForegroundColor Red
+    exit 1
+}
+
+# 3. Health check
+Write-Host "✓ Health check..." -ForegroundColor Green
+try {
+    $health = Invoke-RestMethod -Uri "$BaseUrl/health" -Method Get
+    if ($health.status -ne "healthy") {
+        Write-Host "⚠️  Sistema en estado: $($health.status)" -ForegroundColor Yellow
+    }
+} catch {
+    Write-Host "❌ Health check falló: $_" -ForegroundColor Red
+    exit 1
+}
+
+# 4. Crear CSV de prueba en directorio temporal
+Write-Host "✓ Creando CSV de prueba..." -ForegroundColor Green
+$tempCsv = Join-Path $env:TEMP "test_bookmarks.csv"
+$csvContent = @"
+url,title
+https://fastapi.tiangolo.com,FastAPI Docs
+https://www.postgresql.org,PostgreSQL
+https://github.com/pgvector/pgvector,pgvector
+"@
+$csvContent | Out-File -FilePath $tempCsv -Encoding UTF8
+
+# 5. Copiar CSV al container (importante: usar rutas Windows correctas)
+Write-Host "✓ Copiando CSV al container..." -ForegroundColor Green
+docker cp $tempCsv "neural_bookmark_api:/tmp/test_bookmarks.csv"
+
+# 6. Importar bookmarks
+Write-Host "✓ Importando bookmarks..." -ForegroundColor Green
+docker-compose exec -T api python scripts/import_csv.py /tmp/test_bookmarks.csv 3
+
+# 7. Esperar procesamiento
+Write-Host "⏳ Esperando procesamiento (30s)..." -ForegroundColor Yellow
+Start-Sleep -Seconds 30
+
+# 8. Verificar stats
+Write-Host "✓ Verificando stats..." -ForegroundColor Green
+$stats = Invoke-RestMethod -Uri "$BaseUrl/stats/processing" -Method Get
+if ($stats.completed -lt 1) {
+    Write-Host "❌ No hay bookmarks completados" -ForegroundColor Red
+    Write-Host "   Completados: $($stats.completed)" -ForegroundColor Yellow
+    Write-Host "   Fallidos: $($stats.failed)" -ForegroundColor Yellow
+    exit 1
+}
+
+# 9. Búsqueda semántica
+Write-Host "✓ Probando búsqueda semántica..." -ForegroundColor Green
+$searchBody = @{
+    query = "python web framework"
+    limit = 5
+} | ConvertTo-Json
+
+$searchResults = Invoke-RestMethod -Uri "$BaseUrl/search" -Method Post `
+    -ContentType "application/json" -Body $searchBody
+
+if ($searchResults.total -lt 1) {
+    Write-Host "❌ Búsqueda no retorna resultados" -ForegroundColor Red
+    exit 1
+}
+
+# 10. Cleanup
+Remove-Item $tempCsv -Force
+
+Write-Host ""
+Write-Host "✅ TODOS LOS TESTS PASARON" -ForegroundColor Green
+Write-Host "Bookmarks completados: $($stats.completed)" -ForegroundColor Cyan
+Write-Host "Resultados de búsqueda: $($searchResults.total)" -ForegroundColor Cyan
+Write-Host "=" * 60
+Ejecutar:
+powershell# Dar permisos de ejecución (PowerShell como admin)
+Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
+
+# Ejecutar test
+.\tests\manual\smoke_test.ps1
+
+1.2 Script Batch Alternativo (cmd.exe)
+batch@echo off
+REM tests/manual/smoke_test.bat
+echo ======================================
+echo SMOKE TEST - Neural Bookmark Brain
+echo ======================================
+
+REM 1. Verificar Docker
+echo [1/9] Verificando Docker...
+docker info >nul 2>&1
+if errorlevel 1 (
+    echo ERROR: Docker Desktop no esta corriendo
+    exit /b 1
+)
+
+REM 2. Health check
+echo [2/9] Health check...
+curl -f http://localhost:8000/health >nul 2>&1
+if errorlevel 1 (
+    echo ERROR: API no responde
+    exit /b 1
+)
+
+REM 3. Crear CSV temporal
+echo [3/9] Creando CSV de prueba...
+echo url,title > %TEMP%\test_bookmarks.csv
+echo https://fastapi.tiangolo.com,FastAPI Docs >> %TEMP%\test_bookmarks.csv
+echo https://www.postgresql.org,PostgreSQL >> %TEMP%\test_bookmarks.csv
+
+REM 4. Copiar al container
+echo [4/9] Copiando al container...
+docker cp %TEMP%\test_bookmarks.csv neural_bookmark_api:/tmp/test_bookmarks.csv
+
+REM 5. Importar
+echo [5/9] Importando bookmarks...
+docker-compose exec -T api python scripts/import_csv.py /tmp/test_bookmarks.csv 3
+
+REM 6. Esperar
+echo [6/9] Esperando procesamiento (30s)...
+timeout /t 30 /nobreak >nul
+
+REM 7. Verificar stats (requiere jq.exe o parseo manual)
+echo [7/9] Verificando stats...
+curl -s http://localhost:8000/stats/processing
+
+echo.
+echo ===================================
+echo TESTS COMPLETADOS
+echo ===================================
+
+FASE 2: Pytest en Windows
+2.1 Configuración de Pytest para Windows
+python# tests/conftest.py - VERSIÓN WINDOWS-COMPATIBLE
+import pytest
+import asyncio
+import sys
+import os
+from pathlib import Path
+from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
+
+# Windows necesita ProactorEventLoop para async
+if sys.platform == 'win32':
+    asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
+
+# Database URL para Windows
+# Opción 1: PostgreSQL en Docker
+TEST_DATABASE_URL = "postgresql+asyncpg://bookmark_user:bookmark_pass_2024@localhost:5432/neural_bookmarks_test"
+
+# Opción 2: PostgreSQL nativo en Windows
+# TEST_DATABASE_URL = "postgresql+asyncpg://postgres:password@localhost:5432/neural_bookmarks_test"
+
+@pytest.fixture(scope="session")
+def event_loop():
+    """Event loop compatible con Windows"""
+    if sys.platform == 'win32':
+        # Windows requiere ProactorEventLoop
+        loop = asyncio.ProactorEventLoop()
+    else:
+        loop = asyncio.new_event_loop()
+    
+    yield loop
+    loop.close()
+
+@pytest.fixture(scope="function")
+async def db_session():
+    """Session de DB limpia para cada test"""
+    from app.database import Base
+    
+    engine = create_async_engine(
+        TEST_DATABASE_URL,
+        echo=False,
+        # Windows puede necesitar más timeout
+        pool_pre_ping=True,
+        pool_recycle=3600
+    )
+    
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.drop_all)
+        await conn.run_sync(Base.metadata.create_all)
+        await conn.execute("CREATE EXTENSION IF NOT EXISTS vector")
+    
+    async_session = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+    
+    async with async_session() as session:
+        yield session
+    
+    await engine.dispose()
+
+@pytest.fixture
+def temp_csv_file(tmp_path):
+    """Crea CSV temporal compatible con Windows"""
+    csv_file = tmp_path / "test_bookmarks.csv"
+    csv_content = """url,title
+https://example.com,Test 1
+https://test.com,Test 2"""
+    
+    # Escribir con encoding explícito para Windows
+    csv_file.write_text(csv_content, encoding='utf-8')
+    return csv_file
+2.2 Adaptación de Tests para Windows
+python# tests/unit/test_validators.py - Windows-safe
+import pytest
+from pathlib import Path
+from app.utils.validators import URLValidator
+
+class TestURLValidator:
+    def test_extract_domain_windows_safe(self):
+        """Test que funciona tanto en Windows como Linux"""
+        domain = URLValidator.extract_domain("http://localhost:8080")
+        assert domain == "localhost:8080"
+    
+    def test_normalize_url_with_backslash(self):
+        """Windows puede generar URLs con backslashes por error"""
+        # Esto NO debería pasar, pero defensivo
+        url = "https://example.com\\path"
+        is_valid, normalized, error = URLValidator.validate_and_normalize(url)
+        # Debería fallar validación
+        assert is_valid is False
+
+# tests/integration/test_import.py - Paths compatibles
+class TestCSVImport:
+    @pytest.mark.asyncio
+    async def test_import_csv_windows_paths(self, temp_csv_file, db_session):
+        """Test con rutas Windows (usa pathlib)"""
+        from scripts.import_csv import BookmarkImporter
+        
+        # Path es multiplataforma
+        csv_path = Path(temp_csv_file)
+        assert csv_path.exists()
+        
+        importer = BookmarkImporter(str(csv_path), batch_size=2)
+        stats = await importer.import_bookmarks()
+        
+        assert stats["total_bookmarks"] == 2
+
+FASE 3: Scripts de Automatización Windows
+3.1 Makefile.bat (Reemplazo del Makefile)
+batch@echo off
+REM Makefile.bat - Comandos útiles para Windows
+
+if "%1"=="" goto help
+if "%1"=="help" goto help
+if "%1"=="up" goto up
+if "%1"=="down" goto down
+if "%1"=="logs" goto logs
+if "%1"=="test" goto test
+if "%1"=="import" goto import
+if "%1"=="stats" goto stats
+if "%1"=="clean" goto clean
+goto help
+
+:help
+echo Comandos disponibles:
+echo   make up       - Levantar servicios
+echo   make down     - Detener servicios
+echo   make logs     - Ver logs
+echo   make test     - Ejecutar tests
+echo   make import   - Importar CSV (requiere FILE=ruta)
+echo   make stats    - Ver estadisticas
+echo   make clean    - Limpiar todo
+goto :eof
+
+:up
+docker-compose up -d
+goto :eof
+
+:down
+docker-compose down
+goto :eof
+
+:logs
+docker-compose logs -f
+goto :eof
+
+:test
+pytest tests\ -v
+goto :eof
+
+:import
+if "%FILE%"=="" (
+    echo ERROR: Especifica FILE=ruta_al_csv
+    exit /b 1
+)
+docker-compose exec api python scripts\import_csv.py %FILE% 10
+goto :eof
+
+:stats
+curl http://localhost:8000/stats/processing
+goto :eof
+
+:clean
+docker-compose down -v
+goto :eof
+Uso:
+cmdMakefile.bat up
+Makefile.bat import FILE=data\bookmarks.csv
+Makefile.bat test
+3.2 PowerShell Moderno (Preferido)
+powershell# scripts/windows/manage.ps1
+param(
+    [Parameter(Position=0)]
+    [ValidateSet('up','down','logs','test','import','stats','clean','shell')]
+    [string]$Command,
+    
+    [string]$File
+)
+
+function Show-Help {
+    Write-Host "Uso: .\manage.ps1 <comando> [opciones]" -ForegroundColor Cyan
+    Write-Host ""
+    Write-Host "Comandos:" -ForegroundColor Yellow
+    Write-Host "  up              - Levantar servicios"
+    Write-Host "  down            - Detener servicios"
+    Write-Host "  logs            - Ver logs en tiempo real"
+    Write-Host "  test            - Ejecutar tests"
+    Write-Host "  import -File X  - Importar CSV"
+    Write-Host "  stats           - Ver estadísticas"
+    Write-Host "  clean           - Limpiar todo (¡CUIDADO!)"
+    Write-Host "  shell           - Abrir shell en container API"
+}
+
+switch ($Command) {
+    'up' {
+        docker-compose up -d
+        Start-Sleep -Seconds 5
+        Write-Host "✅ Servicios iniciados" -ForegroundColor Green
+        Write-Host "   API: http://localhost:8000/docs" -ForegroundColor Cyan
+    }
+    'down' {
+        docker-compose down
+        Write-Host "✅ Servicios detenidos" -ForegroundColor Green
+    }
+    'logs' {
+        docker-compose logs -f
+    }
+    'test' {
+        pytest tests\ -v --tb=short
+    }
+    'import' {
+        if (-not $File) {
+            Write-Host "❌ Especifica -File ruta_al_csv" -ForegroundColor Red
+            exit 1
+        }
+        
+        # Convertir ruta Windows a ruta container
+        $windowsPath = Resolve-Path $File
+        docker cp $windowsPath neural_bookmark_api:/tmp/import.csv
+        docker-compose exec api python scripts/import_csv.py /tmp/import.csv 10
+    }
+    'stats' {
+        $stats = Invoke-RestMethod -Uri "http://localhost:8000/stats/processing"
+        Write-Host "📊 Estadísticas:" -ForegroundColor Cyan
+        Write-Host "   Total: $($stats.total)" -ForegroundColor White
+        Write-Host "   Completados: $($stats.completed)" -ForegroundColor Green
+        Write-Host "   Pendientes: $($stats.pending)" -ForegroundColor Yellow
+        Write-Host "   Fallidos: $($stats.failed)" -ForegroundColor Red
+    }
+    'clean' {
+        $confirm = Read-Host "¿Eliminar TODOS los datos? (yes/no)"
+        if ($confirm -eq 'yes') {
+            docker-compose down -v
+            Write-Host "✅ Todo limpiado" -ForegroundColor Green
+        } else {
+            Write-Host "Operación cancelada" -ForegroundColor Yellow
+        }
+    }
+    'shell' {
+        docker-compose exec api /bin/bash
+    }
+    default {
+        Show-Help
+    }
+}
+Uso:
+powershell.\scripts\windows\manage.ps1 up
+.\scripts\windows\manage.ps1 import -File "C:\Users\Tu\bookmarks.csv"
+.\scripts\windows\manage.ps1 test
+
+CHECKLIST DE COMPATIBILIDAD WINDOWS
+powershell# scripts/windows/check_compatibility.ps1
+Write-Host "🔍 Verificando Compatibilidad Windows 11" -ForegroundColor Cyan
+Write-Host "=" * 60
+
+$issues = @()
+
+# 1. Docker Desktop
+Write-Host "`n1. Docker Desktop..." -ForegroundColor Yellow
+try {
+    $dockerVersion = docker --version
+    Write-Host "   ✅ $dockerVersion" -ForegroundColor Green
+} catch {
+    Write-Host "   ❌ Docker no instalado" -ForegroundColor Red
+    $issues += "Instalar Docker Desktop"
+}
+
+# 2. WSL2
+Write-Host "`n2. WSL2..." -ForegroundColor Yellow
+try {
+    $wslList = wsl --list --verbose
+    if ($wslList -match "VERSION 2") {
+        Write-Host "   ✅ WSL2 habilitado" -ForegroundColor Green
+    } else {
+        Write-Host "   ⚠️  WSL1 detectado, se recomienda WSL2" -ForegroundColor Yellow
+        $issues += "Actualizar a WSL2: wsl --set-default-version 2"
+    }
+} catch {
+    Write-Host "   ❌ WSL no instalado" -ForegroundColor Red
+    $issues += "Instalar WSL: wsl --install"
+}
+
+# 3. Python
+Write-Host "`n3. Python..." -ForegroundColor Yellow
+try {
+    $pythonVersion = python --version
+    if ($pythonVersion -match "3\.1[1-9]") {
+        Write-Host "   ✅ $pythonVersion" -ForegroundColor Green
+    } else {
+        Write-Host "   ⚠️  $pythonVersion (se requiere 3.11+)" -ForegroundColor Yellow
+        $issues += "Actualizar Python a 3.11+"
+    }
+} catch {
+    Write-Host "   ❌ Python no instalado" -ForegroundColor Red
+    $issues += "Instalar Python 3.11+"
+}
+
+# 4. Git
+Write-Host "`n4. Git..." -ForegroundColor Yellow
+try {
+    $gitVersion = git --version
+    Write-Host "   ✅ $gitVersion" -ForegroundColor Green
+} catch {
+    Write-Host "   ❌ Git no instalado" -ForegroundColor Red
+    $issues += "Instalar Git para Windows"
+}
+
+# 5. Puertos disponibles
+Write-Host "`n5. Puertos necesarios..." -ForegroundColor Yellow
+$ports = @(8000, 5432)
+foreach ($port in $ports) {
+    $connection = Test-NetConnection -ComputerName localhost -Port $port -WarningAction SilentlyContinue
+    if ($connection.TcpTestSucceeded) {
+        Write-Host "   ⚠️  Puerto $port ya en uso" -ForegroundColor Yellow
+        $issues += "Liberar puerto $port o cambiar configuración"
+    } else {
+        Write-Host "   ✅ Puerto $port disponible" -ForegroundColor Green
+    }
+}
+
+# Resumen
+Write-Host "`n" + ("=" * 60)
+if ($issues.Count -eq 0) {
+    Write-Host "✅ Sistema listo para deployment en Windows 11" -ForegroundColor Green
+} else {
+    Write-Host "⚠️  Se encontraron $($issues.Count) problema(s):" -ForegroundColor Yellow
+    foreach ($issue in $issues) {
+        Write-Host "   - $issue" -ForegroundColor Red
+    }
+}
+Write-Host ("=" * 60)
+
+SIGUIENTE PASO INMEDIATO
+Ejecuta estos comandos para validar tu entorno Windows:
+powershell# 1. Crear directorio de scripts Windows
+New-Item -ItemType Directory -Force -Path "scripts\windows"
+
+# 2. Guardar el script de compatibilidad
+# (copiar contenido de check_compatibility.ps1)
+
+# 3. Ejecutar check
+.\scripts\windows\check_compatibility.ps1
+
+# 4. Si todo OK, ejecutar smoke test
+.\tests\manual\smoke_test.ps1

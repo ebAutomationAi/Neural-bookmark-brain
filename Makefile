@@ -80,3 +80,22 @@ install-local: ## Instala dependencias localmente (sin Docker)
 	python -m venv venv
 	. venv/bin/activate && pip install -r requirements.txt
 	@echo "✅ Entorno virtual creado. Activar con: source venv/bin/activate"
+
+security-check: ## Ejecuta análisis de seguridad en dependencias locales
+	@echo "🔍 Configurando entorno virtual seguro para herramientas..."
+	@python3 -m venv .venv-security
+	@.venv-security/bin/pip install -q --upgrade pip
+	@.venv-security/bin/pip install -q safety pip-audit
+	@echo "\n🛡️  Ejecutando Safety Check..."
+	@.venv-security/bin/safety check -r requirements.txt || true
+	@echo "\n🛡️  Ejecutando Pip-Audit..."
+	@.venv-security/bin/pip-audit -r requirements.txt || true
+	@echo "\n🧹 Limpiando entorno..."
+	@rm -rf .venv-security
+
+update-deps: ## Lista dependencias desactualizadas
+	@echo "📦 Buscando paquetes desactualizados..."
+	@python3 -m venv .venv-security
+	@.venv-security/bin/pip install -q -r requirements.txt
+	@.venv-security/bin/pip list --outdated
+	@rm -rf .venv-security

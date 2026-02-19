@@ -1,0 +1,14 @@
+
+updates:
+  # Analiza las dependencias de Python (requirements.txt)
+  - package-ecosystem: "pip"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+
+  # Analiza la imagen base en el Dockerfile
+  - package-ecosystem: "docker"
+    directory: "/"
+    schedule:
+      interval: "weekly"
