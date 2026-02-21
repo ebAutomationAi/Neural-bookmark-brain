@@ -22,6 +22,8 @@ wheels/
 *.egg-info/
 .installed.cfg
 *.egg
+.mypy_cache/
+.ruff_cache/
 
 # Environment
 .env
@@ -38,6 +40,7 @@ wheels/
 # OS
 .DS_Store
 Thumbs.db
+.directory
 
 # Database
 *.db
@@ -55,6 +58,7 @@ data/raw/
 
 # Docker
 docker-compose.override.yml
+.docker/
 
 # Testing
 .pytest_cache/

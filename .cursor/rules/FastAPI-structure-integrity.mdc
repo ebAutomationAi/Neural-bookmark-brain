@@ -1,0 +1,9 @@
+---
+alwaysApply: true
+---
+
+When modifying the backend:
+- Respect the existing project structure.
+- Do not merge routers unnecessarily.
+- Keep business logic separated from route definitions.
+- Preserve existing environment configuration patterns.

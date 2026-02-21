@@ -3,9 +3,10 @@ services:
     image: pgvector/pgvector:pg16
     container_name: neural_bookmark_db
     environment:
-      POSTGRES_USER: bookmark_user
-      POSTGRES_PASSWORD: bookmark_pass_2024
-      POSTGRES_DB: neural_bookmarks
+      POSTGRES_USER: ${POSTGRES_USER:-bookmark_user}
+      # Definir POSTGRES_PASSWORD en .env en producción
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-devpassword}
+      POSTGRES_DB: ${POSTGRES_DB:-neural_bookmarks}
     ports:
       - "5432:5432"
     volumes:
@@ -26,8 +27,8 @@ services:
         condition: service_healthy
     env_file:  # ← CARGAR VARIABLES DESDE .env DEL HOST
       - .env
-    environment:  # ← SOBREESCRIBIR VARIABLES ESPECÍFICAS SI ES NECESARIO
-      DATABASE_URL: postgresql+asyncpg://bookmark_user:bookmark_pass_2024@db:5432/neural_bookmarks
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-bookmark_user}:${POSTGRES_PASSWORD:-devpassword}@db:5432/${POSTGRES_DB:-neural_bookmarks}
       ENVIRONMENT: production
     ports:
       - "8090:8000"  # HOST:8090 → CONTAINER:8000

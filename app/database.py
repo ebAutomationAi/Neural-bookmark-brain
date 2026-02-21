@@ -1,6 +1,5 @@
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlalchemy.orm import declarative_base
-from sqlalchemy.pool import NullPool
 from sqlalchemy import text
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator
@@ -16,10 +15,17 @@ except Exception as e:
 
 Base = declarative_base()
 
+if not settings.DATABASE_URL or not settings.DATABASE_URL.strip():
+    raise ValueError(
+        "DATABASE_URL no está configurada. Configúrala en .env (ej: cp .env.example .env)"
+    )
+
 try:
     engine = create_async_engine(
         settings.DATABASE_URL,
-        poolclass=NullPool,
+        pool_size=10,
+        max_overflow=20,
+        pool_pre_ping=True,
         echo=False,
     )
 except Exception as e:

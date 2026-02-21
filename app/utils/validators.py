@@ -177,13 +177,7 @@ class DataValidator:
         
         if len(embedding) != expected_dim:
             return False
-        
-        # Verificar que todos sean números
-        try:
-            all(isinstance(x, (int, float)) for x in embedding)
-            return True
-        except:
-            return False
+        return all(isinstance(x, (int, float)) for x in embedding)
 
 
 # Categorías válidas del sistema

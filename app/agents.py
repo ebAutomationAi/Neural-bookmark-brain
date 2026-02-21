@@ -525,155 +525,154 @@ Responde SOLO con el JSON."""
             }
 
 
+def _default_orchestrator_result(url: str, original_title: str) -> Dict:
+    """Construye el diccionario de resultado inicial del orquestador."""
+    return {
+        "success": False,
+        "url": url,
+        "original_title": original_title,
+        "clean_title": original_title,
+        "summary": None,
+        "full_text": None,
+        "tags": [],
+        "category": None,
+        "is_nsfw": False,
+        "nsfw_reason": None,
+        "is_local": False,
+        "domain": None,
+        "language": None,
+        "word_count": 0,
+        "embedding": None,
+        "status": "failed",
+        "scraping_status": "pending",
+        "scraping_strategy": None,
+        "scraping_error_type": None,
+        "scraping_attempts": 0,
+        "curation_status": "pending",
+        "curation_mode": None,
+        "confidence_score": 0.0,
+        "error": None,
+        "processing_time": 0,
+    }
+
+
+def _merge_archivist_into_result(result: Dict, archivist_result: Dict, original_title: str) -> None:
+    """Actualiza result con los campos del agente archivista."""
+    result.update({
+        "clean_title": archivist_result.get("clean_title", original_title),
+        "full_text": archivist_result.get("full_text"),
+        "is_nsfw": archivist_result.get("is_nsfw", False),
+        "nsfw_reason": archivist_result.get("nsfw_reason"),
+        "is_local": archivist_result.get("is_local", False),
+        "domain": archivist_result.get("domain"),
+        "language": archivist_result.get("language"),
+        "word_count": archivist_result.get("word_count", 0),
+        "scraping_status": archivist_result.get("scraping_status", "failed"),
+        "scraping_strategy": archivist_result.get("scraping_strategy"),
+        "scraping_error_type": archivist_result.get("scraping_error_type"),
+        "scraping_attempts": archivist_result.get("scraping_attempts", 0),
+    })
+
+
 class AgentOrchestrator:
     """
     Orquestador de Agentes - VERSIÓN CON ESTADOS PARCIALES
-    
+
     Coordina el flujo de procesamiento entre Archivista y Curador
     Permite procesamiento parcial exitoso
     """
-    
+
     def __init__(self):
         self.archivist = ArchivistAgent()
         self.curator = CuratorAgent()
-    
-    async def process_bookmark(
+
+    async def _run_archivist(self, url: str, original_title: str) -> Dict:
+        """Ejecuta el agente archivista y devuelve su resultado (nunca lanza)."""
+        try:
+            return await self.archivist.process(url, original_title)
+        except Exception as e:
+            logger.exception("Error en Agente Archivista")
+            return {"error": str(e)}
+
+    async def _run_curator(self, clean_title: str, full_text: Optional[str], url: str) -> Dict:
+        """Ejecuta el agente curador y devuelve su resultado (nunca lanza)."""
+        try:
+            return await self.curator.process(clean_title, full_text, url)
+        except Exception as e:
+            logger.exception("Error en Agente Curador")
+            return {"success": False, "error": str(e)}
+
+    def _apply_curator_success(
         self,
+        result: Dict,
+        curator_result: Dict,
+        archivist_result: Dict,
         url: str,
-        original_title: str
-    ) -> Dict:
+    ) -> None:
+        """Aplica el resultado exitoso del curador y determina estado final."""
+        result.update({
+            "summary": curator_result.get("summary"),
+            "tags": curator_result.get("tags", []),
+            "category": curator_result.get("category"),
+            "embedding": curator_result.get("embedding"),
+            "curation_status": curator_result.get("curation_status"),
+            "curation_mode": curator_result.get("curation_mode"),
+            "confidence_score": curator_result.get("confidence", 0.0),
+        })
+        if result["scraping_status"] == "success":
+            result["status"] = "completed"
+            result["success"] = True
+        else:
+            result["status"] = "completed_partial"
+            result["success"] = True
+            result["error"] = archivist_result.get("error")
+        logger.info(
+            "[Orchestrator] ✅ Procesamiento exitoso: %s (Status: %s, Confidence: %.2f)",
+            url, result["status"], result["confidence_score"],
+        )
+
+    async def process_bookmark(self, url: str, original_title: str) -> Dict:
         """
-        Procesa un bookmark completo a través de ambos agentes
-        GARANTIZA que siempre se intenta la curación, incluso si scraping falla
-        
-        Returns:
-            Dict completo con todos los campos procesados y estados parciales
+        Procesa un bookmark completo a través de ambos agentes.
+        Garantiza que siempre se intenta la curación, incluso si scraping falla.
         """
         start_time = datetime.now()
-        
-        logger.info(f"[Orchestrator] Iniciando procesamiento: {url}")
-        
-        result = {
-            "success": False,
-            "url": url,
-            "original_title": original_title,
-            "clean_title": original_title,
-            "summary": None,
-            "full_text": None,
-            "tags": [],
-            "category": None,
-            "is_nsfw": False,
-            "nsfw_reason": None,
-            "is_local": False,
-            "domain": None,
-            "language": None,
-            "word_count": 0,
-            "embedding": None,
-            # Estados
-            "status": "failed",
-            "scraping_status": "pending",
-            "scraping_strategy": None,
-            "scraping_error_type": None,
-            "scraping_attempts": 0,
-            "curation_status": "pending",
-            "curation_mode": None,
-            "confidence_score": 0.0,
-            # Metadata
-            "error": None,
-            "processing_time": 0,
-        }
-        
+        logger.info("[Orchestrator] Iniciando procesamiento: %s", url)
+        result = _default_orchestrator_result(url, original_title)
+
         try:
-            # FASE 1: Agente Archivista
-            try:
-                archivist_result = await self.archivist.process(url, original_title)
-            except Exception as e:
-                print(f"Error en Agente Archivista: {e}")
-                logger.error(f"Error en Agente Archivista: {e}")
-                archivist_result = {"error": str(e)}
-            
-            # Actualizar resultado
-            result.update({
-                "clean_title": archivist_result.get("clean_title", original_title),
-                "full_text": archivist_result.get("full_text"),
-                "is_nsfw": archivist_result.get("is_nsfw", False),
-                "nsfw_reason": archivist_result.get("nsfw_reason"),
-                "is_local": archivist_result.get("is_local", False),
-                "domain": archivist_result.get("domain"),
-                "language": archivist_result.get("language"),
-                "word_count": archivist_result.get("word_count", 0),
-                "scraping_status": archivist_result.get("scraping_status", "failed"),
-                "scraping_strategy": archivist_result.get("scraping_strategy"),
-                "scraping_error_type": archivist_result.get("scraping_error_type"),
-                "scraping_attempts": archivist_result.get("scraping_attempts", 0),
-            })
-            
-            # Si es local, marcar para manual
+            archivist_result = await self._run_archivist(url, original_title)
+            _merge_archivist_into_result(result, archivist_result, original_title)
+
             if result["is_local"]:
                 result["status"] = "manual_required"
                 result["error"] = archivist_result.get("error")
-                logger.warning(f"[Orchestrator] URL local - Manual requerido: {url}")
+                logger.warning("[Orchestrator] URL local - Manual requerido: %s", url)
                 return result
-            
-            # FASE 2: Agente Curador (SIEMPRE se ejecuta, incluso si scraping falló)
-            try:
-                curator_result = await self.curator.process(
-                    result["clean_title"],
-                    result["full_text"],  # Puede ser None
-                    url
-                )
-            except Exception as e:
-                print(f"Error en Agente Curador: {e}")
-                logger.error(f"Error en Agente Curador: {e}")
-                curator_result = {"success": False, "error": str(e)}
-            
-            if curator_result["success"]:
-                result.update({
-                    "summary": curator_result.get("summary"),
-                    "tags": curator_result.get("tags", []),
-                    "category": curator_result.get("category"),
-                    "embedding": curator_result.get("embedding"),
-                    "curation_status": curator_result.get("curation_status"),
-                    "curation_mode": curator_result.get("curation_mode"),
-                    "confidence_score": curator_result.get("confidence", 0.0),
-                })
-                
-                # Determinar estado final
-                if result["scraping_status"] == "success":
-                    result["status"] = "completed"
-                    result["success"] = True
-                else:
-                    # Scraping falló pero curación exitosa
-                    result["status"] = "completed_partial"
-                    result["success"] = True
-                    result["error"] = archivist_result.get("error")
-                
-                logger.info(
-                    f"[Orchestrator] ✅ Procesamiento exitoso: {url} "
-                    f"(Status: {result['status']}, Confidence: {result['confidence_score']:.2f})"
-                )
+
+            curator_result = await self._run_curator(
+                result["clean_title"], result["full_text"], url
+            )
+
+            if curator_result.get("success"):
+                self._apply_curator_success(result, curator_result, archivist_result, url)
             else:
-                # Tanto scraping como curación fallaron
                 result["status"] = "failed"
                 result["curation_status"] = "failed"
-                result["error"] = curator_result.get("error") or archivist_result.get("error")
-                logger.error(f"[Orchestrator] ❌ Procesamiento fallido: {url}")
-        
+                result["error"] = (
+                    curator_result.get("error") or archivist_result.get("error")
+                )
+                logger.error("[Orchestrator] ❌ Procesamiento fallido: %s", url)
         except Exception as e:
             result["status"] = "failed"
             result["error"] = str(e)
-            logger.error(f"[Orchestrator] Error general: {e}")
-        
+            logger.exception("[Orchestrator] Error general")
         finally:
-            # Calcular tiempo de procesamiento
-            end_time = datetime.now()
-            result["processing_time"] = (end_time - start_time).total_seconds()
-            
+            result["processing_time"] = (datetime.now() - start_time).total_seconds()
             logger.info(
-                f"[Orchestrator] Procesamiento completado: {url} "
-                f"(Status: {result['status']}, Tiempo: {result['processing_time']:.2f}s)"
+                "[Orchestrator] Procesamiento completado: %s (Status: %s, Tiempo: %.2fs)",
+                url, result["status"], result["processing_time"],
             )
-        
         return result
 
 

@@ -23,6 +23,7 @@
 
 ```
 ARCHITECTURE.md
+AUDITORIA_TECNICA.md
 Dockerfile
 INDEX.md
 LICENSE
@@ -45,6 +46,7 @@ path/
 procesamiento_20260209_231453.log
 progress_log.md
 prototype.html
+pytest.ini
 recopila_codigos_wsl.py
 requirements.txt
 scripts/
@@ -122,60 +124,70 @@ tree.txt
 65. `neural-bookmark-ui/tsconfig.node.json`
 66. `neural-bookmark-ui/vite.config.ts`
 67. `prototype.html`
-68. `requirements.txt`
-69. `scripts/__init__.py`
-70. `scripts/analyze_tracking.py`
-71. `scripts/check_env.py`
-72. `scripts/check_security.py`
-73. `scripts/check_url_clean.py`
-74. `scripts/example_api_usage.py`
-75. `scripts/import_csv.py`
-76. `scripts/init_db.py`
-77. `scripts/init_db.sql`
-78. `scripts/quick_stats.py`
-79. `scripts/reprocess_failed.py`
-80. `scripts/stats.py`
-81. `scripts/test_scraper_limits.py`
-82. `scripts/verify_installation.py`
-83. `scripts/verify_pipeline.py`
-84. `scripts/verify_urls.py`
-85. `sprint1/agents_resilient.py`
-86. `sprint1/migration_001_add_resilience_fields.sql`
-87. `sprint1/models_updated.py`
-88. `sprint1/scraper_resilient.py`
-89. `sprint1/test_sprint1_resilient.py`
-90. `tests/__init__.py`
-91. `tests/conftest.py`
-92. `tests/e2e/__init__.py`
-93. `tests/e2e/test_import_flow.py`
-94. `tests/integration/__init__.py`
-95. `tests/integration/test_agents.py`
-96. `tests/integration/test_api.py`
-97. `tests/integration/test_database.py`
-98. `tests/test_rate_limiting.py`
-99. `tests/test_rate_limiting_api.py`
-100. `tests/unit/__init__.py`
-101. `tests/unit/test_classifier.py`
-102. `tests/unit/test_embeddings.py`
-103. `tests/unit/test_scraper.py`
-104. `tests/unit/test_validators.py`
+68. `pytest.ini`
+69. `requirements.txt`
+70. `scripts/__init__.py`
+71. `scripts/analyze_tracking.py`
+72. `scripts/check_env.py`
+73. `scripts/check_security.py`
+74. `scripts/check_url_clean.py`
+75. `scripts/example_api_usage.py`
+76. `scripts/import_csv.py`
+77. `scripts/init_db.py`
+78. `scripts/init_db.sql`
+79. `scripts/quick_stats.py`
+80. `scripts/reprocess_failed.py`
+81. `scripts/stats.py`
+82. `scripts/test_scraper_limits.py`
+83. `scripts/verify_installation.py`
+84. `scripts/verify_pipeline.py`
+85. `scripts/verify_urls.py`
+86. `sprint1/agents_resilient.py`
+87. `sprint1/migration_001_add_resilience_fields.sql`
+88. `sprint1/models_updated.py`
+89. `sprint1/scraper_resilient.py`
+90. `sprint1/test_sprint1_resilient.py`
+91. `tests/__init__.py`
+92. `tests/conftest.py`
+93. `tests/e2e/__init__.py`
+94. `tests/e2e/test_import_flow.py`
+95. `tests/integration/__init__.py`
+96. `tests/integration/test_agents.py`
+97. `tests/integration/test_api.py`
+98. `tests/integration/test_database.py`
+99. `tests/test_rate_limiting.py`
+100. `tests/test_rate_limiting_api.py`
+101. `tests/unit/__init__.py`
+102. `tests/unit/test_classifier.py`
+103. `tests/unit/test_embeddings.py`
+104. `tests/unit/test_scraper.py`
+105. `tests/unit/test_validators.py`
 
-**Total de archivos:** 104
+**Total de archivos:** 105
 
 ================================================================================
 
 
 ================================================================================
 📄 ARCHIVO: .env.example
-📏 Tamaño: 0.6 KB
+📏 Tamaño: 0.9 KB
 ⚠️  DATOS SENSIBLES ENMASCARADOS:
   ⚠️  Encontrado 1 coincidencia(s) de tipo: (?i)(api
+  ⚠️  Encontrado 1 coincidencia(s) de tipo: (?i)(password|passwd|pwd)
   ⚠️  Encontrado 1 coincidencia(s) de tipo: (?i)(database
   ⚠️  Encontrado 1 coincidencia(s) de tipo: (?i)^(
 ================================================================================
 
-# Database Configuration
+# Database Configuration (obligatorio: sin DATABASE_URL la app no arranca)
 DATABASE_URL: "postgresql+asyncpg://bookmark_user:xxxxxxxxxx@localhost:5432/neural_bookmarks
+
+# Docker Compose: usuario y contraseña de PostgreSQL (definir en .env)
+POSTGRES_USER=bookmark_user
+POSTGRES_PASSWORD: "xxxxxxxxxx"
+POSTGRES_DB=neural_bookmarks
+
+# CORS: orígenes permitidos separados por coma; * = todos (solo desarrollo)
+CORS_ORIGINS=*
 
 # AI Configuration
 GROQ_API_KEY: "xxxxxxxxxx"
@@ -275,7 +287,7 @@ __author__ = "Neural Bookmark Team"
 
 ================================================================================
 📄 ARCHIVO: app/agents.py
-📏 Tamaño: 26.1 KB
+📏 Tamaño: 26.0 KB
 ================================================================================
 
 # app/agents.py - VERSIÓN CON RESILIENCIA Y ESTADOS PARCIALES
@@ -805,155 +817,154 @@ Responde SOLO con el JSON."""
             }
 
 
+def _default_orchestrator_result(url: str, original_title: str) -> Dict:
+    """Construye el diccionario de resultado inicial del orquestador."""
+    return {
+        "success": False,
+        "url": url,
+        "original_title": original_title,
+        "clean_title": original_title,
+        "summary": None,
+        "full_text": None,
+        "tags": [],
+        "category": None,
+        "is_nsfw": False,
+        "nsfw_reason": None,
+        "is_local": False,
+        "domain": None,
+        "language": None,
+        "word_count": 0,
+        "embedding": None,
+        "status": "failed",
+        "scraping_status": "pending",
+        "scraping_strategy": None,
+        "scraping_error_type": None,
+        "scraping_attempts": 0,
+        "curation_status": "pending",
+        "curation_mode": None,
+        "confidence_score": 0.0,
+        "error": None,
+        "processing_time": 0,
+    }
+
+
+def _merge_archivist_into_result(result: Dict, archivist_result: Dict, original_title: str) -> None:
+    """Actualiza result con los campos del agente archivista."""
+    result.update({
+        "clean_title": archivist_result.get("clean_title", original_title),
+        "full_text": archivist_result.get("full_text"),
+        "is_nsfw": archivist_result.get("is_nsfw", False),
+        "nsfw_reason": archivist_result.get("nsfw_reason"),
+        "is_local": archivist_result.get("is_local", False),
+        "domain": archivist_result.get("domain"),
+        "language": archivist_result.get("language"),
+        "word_count": archivist_result.get("word_count", 0),
+        "scraping_status": archivist_result.get("scraping_status", "failed"),
+        "scraping_strategy": archivist_result.get("scraping_strategy"),
+        "scraping_error_type": archivist_result.get("scraping_error_type"),
+        "scraping_attempts": archivist_result.get("scraping_attempts", 0),
+    })
+
+
 class AgentOrchestrator:
     """
     Orquestador de Agentes - VERSIÓN CON ESTADOS PARCIALES
-    
+
     Coordina el flujo de procesamiento entre Archivista y Curador
     Permite procesamiento parcial exitoso
     """
-    
+
     def __init__(self):
         self.archivist = ArchivistAgent()
         self.curator = CuratorAgent()
-    
-    async def process_bookmark(
+
+    async def _run_archivist(self, url: str, original_title: str) -> Dict:
+        """Ejecuta el agente archivista y devuelve su resultado (nunca lanza)."""
+        try:
+            return await self.archivist.process(url, original_title)
+        except Exception as e:
+            logger.exception("Error en Agente Archivista")
+            return {"error": str(e)}
+
+    async def _run_curator(self, clean_title: str, full_text: Optional[str], url: str) -> Dict:
+        """Ejecuta el agente curador y devuelve su resultado (nunca lanza)."""
+        try:
+            return await self.curator.process(clean_title, full_text, url)
+        except Exception as e:
+            logger.exception("Error en Agente Curador")
+            return {"success": False, "error": str(e)}
+
+    def _apply_curator_success(
         self,
+        result: Dict,
+        curator_result: Dict,
+        archivist_result: Dict,
         url: str,
-        original_title: str
-    ) -> Dict:
+    ) -> None:
+        """Aplica el resultado exitoso del curador y determina estado final."""
+        result.update({
+            "summary": curator_result.get("summary"),
+            "tags": curator_result.get("tags", []),
+            "category": curator_result.get("category"),
+            "embedding": curator_result.get("embedding"),
+            "curation_status": curator_result.get("curation_status"),
+            "curation_mode": curator_result.get("curation_mode"),
+            "confidence_score": curator_result.get("confidence", 0.0),
+        })
+        if result["scraping_status"] == "success":
+            result["status"] = "completed"
+            result["success"] = True
+        else:
+            result["status"] = "completed_partial"
+            result["success"] = True
+            result["error"] = archivist_result.get("error")
+        logger.info(
+            "[Orchestrator] ✅ Procesamiento exitoso: %s (Status: %s, Confidence: %.2f)",
+            url, result["status"], result["confidence_score"],
+        )
+
+    async def process_bookmark(self, url: str, original_title: str) -> Dict:
         """
-        Procesa un bookmark completo a través de ambos agentes
-        GARANTIZA que siempre se intenta la curación, incluso si scraping falla
-        
-        Returns:
-            Dict completo con todos los campos procesados y estados parciales
+        Procesa un bookmark completo a través de ambos agentes.
+        Garantiza que siempre se intenta la curación, incluso si scraping falla.
         """
         start_time = datetime.now()
-        
-        logger.info(f"[Orchestrator] Iniciando procesamiento: {url}")
-        
-        result = {
-            "success": False,
-            "url": url,
-            "original_title": original_title,
-            "clean_title": original_title,
-            "summary": None,
-            "full_text": None,
-            "tags": [],
-            "category": None,
-            "is_nsfw": False,
-            "nsfw_reason": None,
-            "is_local": False,
-            "domain": None,
-            "language": None,
-            "word_count": 0,
-            "embedding": None,
-            # Estados
-            "status": "failed",
-            "scraping_status": "pending",
-            "scraping_strategy": None,
-            "scraping_error_type": None,
-            "scraping_attempts": 0,
-            "curation_status": "pending",
-            "curation_mode": None,
-            "confidence_score": 0.0,
-            # Metadata
-            "error": None,
-            "processing_time": 0,
-        }
-        
+        logger.info("[Orchestrator] Iniciando procesamiento: %s", url)
+        result = _default_orchestrator_result(url, original_title)
+
         try:
-            # FASE 1: Agente Archivista
-            try:
-                archivist_result = await self.archivist.process(url, original_title)
-            except Exception as e:
-                print(f"Error en Agente Archivista: {e}")
-                logger.error(f"Error en Agente Archivista: {e}")
-                archivist_result = {"error": str(e)}
-            
-            # Actualizar resultado
-            result.update({
-                "clean_title": archivist_result.get("clean_title", original_title),
-                "full_text": archivist_result.get("full_text"),
-                "is_nsfw": archivist_result.get("is_nsfw", False),
-                "nsfw_reason": archivist_result.get("nsfw_reason"),
-                "is_local": archivist_result.get("is_local", False),
-                "domain": archivist_result.get("domain"),
-                "language": archivist_result.get("language"),
-                "word_count": archivist_result.get("word_count", 0),
-                "scraping_status": archivist_result.get("scraping_status", "failed"),
-                "scraping_strategy": archivist_result.get("scraping_strategy"),
-                "scraping_error_type": archivist_result.get("scraping_error_type"),
-                "scraping_attempts": archivist_result.get("scraping_attempts", 0),
-            })
-            
-            # Si es local, marcar para manual
+            archivist_result = await self._run_archivist(url, original_title)
+            _merge_archivist_into_result(result, archivist_result, original_title)
+
             if result["is_local"]:
                 result["status"] = "manual_required"
                 result["error"] = archivist_result.get("error")
-                logger.warning(f"[Orchestrator] URL local - Manual requerido: {url}")
+                logger.warning("[Orchestrator] URL local - Manual requerido: %s", url)
                 return result
-            
-            # FASE 2: Agente Curador (SIEMPRE se ejecuta, incluso si scraping falló)
-            try:
-                curator_result = await self.curator.process(
-                    result["clean_title"],
-                    result["full_text"],  # Puede ser None
-                    url
-                )
-            except Exception as e:
-                print(f"Error en Agente Curador: {e}")
-                logger.error(f"Error en Agente Curador: {e}")
-                curator_result = {"success": False, "error": str(e)}
-            
-            if curator_result["success"]:
-                result.update({
-                    "summary": curator_result.get("summary"),
-                    "tags": curator_result.get("tags", []),
-                    "category": curator_result.get("category"),
-                    "embedding": curator_result.get("embedding"),
-                    "curation_status": curator_result.get("curation_status"),
-                    "curation_mode": curator_result.get("curation_mode"),
-                    "confidence_score": curator_result.get("confidence", 0.0),
-                })
-                
-                # Determinar estado final
-                if result["scraping_status"] == "success":
-                    result["status"] = "completed"
-                    result["success"] = True
-                else:
-                    # Scraping falló pero curación exitosa
-                    result["status"] = "completed_partial"
-                    result["success"] = True
-                    result["error"] = archivist_result.get("error")
-                
-                logger.info(
-                    f"[Orchestrator] ✅ Procesamiento exitoso: {url} "
-                    f"(Status: {result['status']}, Confidence: {result['confidence_score']:.2f})"
-                )
+
+            curator_result = await self._run_curator(
+                result["clean_title"], result["full_text"], url
+            )
+
+            if curator_result.get("success"):
+                self._apply_curator_success(result, curator_result, archivist_result, url)
             else:
-                # Tanto scraping como curación fallaron
                 result["status"] = "failed"
                 result["curation_status"] = "failed"
-                result["error"] = curator_result.get("error") or archivist_result.get("error")
-                logger.error(f"[Orchestrator] ❌ Procesamiento fallido: {url}")
-        
+                result["error"] = (
+                    curator_result.get("error") or archivist_result.get("error")
+                )
+                logger.error("[Orchestrator] ❌ Procesamiento fallido: %s", url)
         except Exception as e:
             result["status"] = "failed"
             result["error"] = str(e)
-            logger.error(f"[Orchestrator] Error general: {e}")
-        
+            logger.exception("[Orchestrator] Error general")
         finally:
-            # Calcular tiempo de procesamiento
-            end_time = datetime.now()
-            result["processing_time"] = (end_time - start_time).total_seconds()
-            
+            result["processing_time"] = (datetime.now() - start_time).total_seconds()
             logger.info(
-                f"[Orchestrator] Procesamiento completado: {url} "
-                f"(Status: {result['status']}, Tiempo: {result['processing_time']:.2f}s)"
+                "[Orchestrator] Procesamiento completado: %s (Status: %s, Tiempo: %.2fs)",
+                url, result["status"], result["processing_time"],
             )
-        
         return result
 
 
@@ -963,7 +974,7 @@ orchestrator = AgentOrchestrator()
 
 ================================================================================
 📄 ARCHIVO: app/config.py
-📏 Tamaño: 1.5 KB
+📏 Tamaño: 2.7 KB
 ================================================================================
 
 # app/config.py
@@ -971,55 +982,93 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 from functools import lru_cache
 from typing import List
 
+
 class Settings(BaseSettings):
     # --- Base de Datos ---
-    DATABASE_URL: str = "postgresql+asyncpg://bookmark_user:bookmark_pass_2024@127.0.0.1:5432/neural_bookmarks"
+    DATABASE_URL: str = ""
     EMBEDDING_DIMENSION: int = 384
 
     # --- API Keys ---
-    GROQ_API_KEY: str
-    
+    GROQ_API_KEY: str = ""
+
+    # --- CORS ---
+    CORS_ORIGINS: str = "*"
+
+    # --- Rate limiting ---
+    RATE_LIMIT_GLOBAL: str = "100/minute"
+    RATE_LIMIT_SEARCH: str = "10/minute"
+    RATE_LIMIT_CREATE: str = "5/minute"
+
     # --- Configuración del Scraper ---
-    SCRAPER_USER_AGENT: str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+    SCRAPER_USER_AGENT: str = (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+    )
     SCRAPER_TIMEOUT: int = 30
     SCRAPER_MAX_RETRIES: int = 3
-    local_domains_list: List[str] = ["localhost", "127.0.0.1", "0.0.0.0"]
-    
+    SCRAPER_MAX_REDIRECTS: int = 5
+    SCRAPER_DELAY_BETWEEN_REQUESTS: float = 1.0
+
+    # FIX: Mantener como str + @property para evitar que pydantic-settings
+    # intente deserializar como JSON antes de que el validator pueda actuar.
+    # pydantic-settings v2 falla con List[str] + validation_alias cuando el
+    # valor en .env es una cadena CSV (no JSON).
+    LOCAL_DOMAINS: str = "localhost,127.0.0.1,0.0.0.0"
+
     # --- Configuración de IA y Agentes ---
     EMBEDDING_MODEL: str = "sentence-transformers/all-MiniLM-L6-v2"
     EMBEDDING_MODEL_NAME: str = "sentence-transformers/all-MiniLM-L6-v2"
     LLM_MODEL_NAME: str = "llama-3.1-8b-instant"
-    GROQ_MODEL: str = "llama-3.1-8b-instant"  # <--- Faltaba este campo
+    GROQ_MODEL: str = "llama-3.1-8b-instant"
     CHUNK_SIZE: int = 1000
     CHUNK_OVERLAP: int = 200
 
     # --- Seguridad y Clasificación ---
-    nsfw_keywords_list: List[str] = ["porn", "sex", "xxx", "nude", "casino", "gambling"]
-    nsfw_domains_list: List[str] = ["pornhub.com", "xvideos.com"]
+    # Igual que LOCAL_DOMAINS: str CSV + @property evita el problema de
+    # pydantic-settings intentando JSON-decode en campos List[str].
+    NSFW_KEYWORDS: str = "porn,sex,xxx,nude,casino,gambling"
+    NSFW_DOMAINS: str = "pornhub.com,xvideos.com"
     ENABLE_SAFETY_FILTER: bool = True
-    
+
     # --- Pydantic V2 Config ---
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
-        extra="ignore"
+        extra="ignore",
+        case_sensitive=False,
     )
 
+    # --- Propiedades derivadas (CSV str → List[str]) ---
+    @property
+    def local_domains_list(self) -> List[str]:
+        return [x.strip().lower() for x in self.LOCAL_DOMAINS.split(",") if x.strip()]
+
+    @property
+    def nsfw_keywords_list(self) -> List[str]:
+        return [x.strip().lower() for x in self.NSFW_KEYWORDS.split(",") if x.strip()]
+
+    @property
+    def nsfw_domains_list(self) -> List[str]:
+        return [x.strip().lower() for x in self.NSFW_DOMAINS.split(",") if x.strip()]
+
+    @property
+    def is_production(self) -> bool:
+        return getattr(self, "ENVIRONMENT", "development").lower() == "production"
+
+
+
 @lru_cache()
-def get_settings():
+def get_settings() -> Settings:
     return Settings()
-
-
 
 
 ================================================================================
 📄 ARCHIVO: app/database.py
-📏 Tamaño: 3.0 KB
+📏 Tamaño: 3.1 KB
 ================================================================================
 
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlalchemy.orm import declarative_base
-from sqlalchemy.pool import NullPool
 from sqlalchemy import text
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator
@@ -1035,10 +1084,17 @@ except Exception as e:
 
 Base = declarative_base()
 
+if not settings.DATABASE_URL or not settings.DATABASE_URL.strip():
+    raise ValueError(
+        "DATABASE_URL no está configurada. Configúrala en .env (ej: cp .env.example .env)"
+    )
+
 try:
     engine = create_async_engine(
         settings.DATABASE_URL,
-        poolclass=NullPool,
+        pool_size=10,
+        max_overflow=20,
+        pool_pre_ping=True,
         echo=False,
     )
 except Exception as e:
@@ -1118,12 +1174,12 @@ async def get_db_context():
 
 ================================================================================
 📄 ARCHIVO: app/main.py
-📏 Tamaño: 21.4 KB
+📏 Tamaño: 19.7 KB
 ================================================================================
 
 from fastapi import FastAPI, Depends, HTTPException, Query, status, BackgroundTasks, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, and_, or_, text
 from typing import List, Optional
@@ -1177,9 +1233,10 @@ app = FastAPI(
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
+_cors_origins = ["*"] if settings.CORS_ORIGINS.strip() == "*" else [o.strip() for o in settings.CORS_ORIGINS.split(",") if o.strip()]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=_cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -1233,74 +1290,18 @@ async def health_check(db: AsyncSession = Depends(get_db)):
         version="1.0.0",
         timestamp=datetime.now()
     )
-@app.post("/import/csv", response_model=ImportJobResponse)
-async def import_csv_upload(
-    file: UploadFile = File(...),
-    batch_size: int = Query(10, ge=1, le=50),
-    background_tasks: BackgroundTasks
-):
-    """
-    Importar CSV desde UI
-    - Sube archivo
-    - Valida formato
-    - Encola procesamiento async
-    - Retorna job_id para tracking
-    """
-    # 1. Validar CSV
-    # 2. Guardar en /tmp
-    # 3. Crear ImportJob en DB
-    # 4. Encolar en background
-    # 5. Retornar job_id
 
-@app.get("/import/status/{job_id}")
-async def import_status(job_id: str):
-c
-    Tracking de importación en tiempo real
-    Output: {
-        job_id, status, 
-        total, processed, failed,
-        progress_percent,
-        eta_seconds
-    }
-@app.post("/import/csv", response_model=ImportJobResponse)
-async def import_csv_upload(
-    file: UploadFile = File(...),
-    batch_size: int = Query(10, ge=1, le=50),
-    background_tasks: BackgroundTasks
-):
-    """
-    Importar CSV desde UI
-    - Sube archivo
-    - Valida formato
-    - Encola procesamiento async
-    - Retorna job_id para tracking
-    """
-    # 1. Validar CSV
-    # 2. Guardar en /tmp
-    # 3. Crear ImportJob en DB
-    # 4. Encolar en background
-    # 5. Retornar job_id
 
-@app.get("/import/status/{job_id}")
-async def import_status(job_id: str):
-    """
-    Tracking de importación en tiempo real
-    Output: {
-        job_id, status, 
-        total, processed, failed,
-        progress_percent,
-        eta_seconds
-    }
-    """
-    # 1. Consultar ImportJob por job_id
-    # 2. Retornar status y progreso
-    pass
+# --- Constantes de paginación y exportación ---
+DEFAULT_BOOKMARK_LIMIT = 50
+MAX_BOOKMARK_LIMIT = 100
+MAX_EXPORT_LIMIT = 10_000
 
-### NEW: Endpoint para crear bookmarks ###
+
 @app.post("/bookmarks", response_model=BookmarkResponse, status_code=status.HTTP_201_CREATED, tags=["Bookmarks"])
 @limiter.limit(settings.RATE_LIMIT_CREATE)
 async def create_bookmark(
-    req: Request,
+    request: Request,
     bookmark_in: BookmarkCreate,
     background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db)
@@ -1340,11 +1341,10 @@ async def create_bookmark(
     except HTTPException:
         raise
     except Exception as e:
-        print(f"Error creando bookmark: {e}")
-        logger.error(f"Error creando bookmark: {e}")
-        raise HTTPException(status_code=500, detail=f"Error creando bookmark: {str(e)}")
+        logger.exception("Error creando bookmark")
+        raise HTTPException(status_code=500, detail="Error creando bookmark")
 
-async def process_bookmark_background(bookmark_id: int):
+async def process_bookmark_background(bookmark_id: int) -> None:
     # Wrapper simple para procesar en background sin bloquear request
     # Requiere crear una nueva sesión ya que la anterior se cierra
     # NOTA: Para simplificar este fix, confiamos en el script reprocess_failed.py
@@ -1356,33 +1356,33 @@ async def process_bookmark_background(bookmark_id: int):
 @app.post("/search", response_model=SearchResponse, tags=["Search"])
 @limiter.limit(settings.RATE_LIMIT_SEARCH)
 async def semantic_search(
-    req: Request,
-    request: SearchRequest,
+    request: Request,
+    search_request: SearchRequest,
     db: AsyncSession = Depends(get_db)
 ):
     start_time = datetime.now()
     
     try:
-        logger.info(f"🔍 Búsqueda: '{request.query}' (limit: {request.limit})")
+        logger.info(f"🔍 Búsqueda: '{search_request.query}' (limit: {search_request.limit})")
         
         embedding_service = get_embedding_service()
-        query_embedding = embedding_service.generate_query_embedding(request.query)
+        query_embedding = embedding_service.generate_query_embedding(search_request.query)
         
         query_stmt = select(Bookmark).where(Bookmark.status == "completed")
         
-        if not request.include_nsfw:
+        if not search_request.include_nsfw:
             query_stmt = query_stmt.where(Bookmark.is_nsfw == False)
         
-        if request.category:
-            query_stmt = query_stmt.where(Bookmark.category == request.category)
+        if search_request.category:
+            query_stmt = query_stmt.where(Bookmark.category == search_request.category)
         
-        if request.tags:
-            tag_conditions = [Bookmark.tags.contains([tag]) for tag in request.tags]
+        if search_request.tags:
+            tag_conditions = [Bookmark.tags.contains([tag]) for tag in search_request.tags]
             query_stmt = query_stmt.where(or_(*tag_conditions))
         
         query_stmt = query_stmt.order_by(
             Bookmark.embedding.cosine_distance(query_embedding)
-        ).limit(request.limit)
+        ).limit(search_request.limit)
         
         result = await db.execute(query_stmt)
         bookmarks = result.scalars().all()
@@ -1413,7 +1413,7 @@ async def semantic_search(
             )
         
         search_history = SearchHistory(
-            query=request.query,
+            query=search_request.query,
             results_count=len(search_results)
         )
         db.add(search_history)
@@ -1422,20 +1422,19 @@ async def semantic_search(
         execution_time = (datetime.now() - start_time).total_seconds()
         
         return SearchResponse(
-            query=request.query,
+            query=search_request.query,
             results=search_results,
             total=len(search_results),
             execution_time=execution_time
         )
     
-    except Exception as e:
-        logger.error(f"Error en búsqueda: {e}")
-        # Log completo para debug
-        import traceback
-        traceback.print_exc()
+    except HTTPException:
+        raise
+    except Exception:
+        logger.exception("Error en búsqueda")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error en búsqueda: {str(e)}"
+            detail="Error en búsqueda",
         )
 
 
@@ -1449,16 +1448,15 @@ async def get_bookmark(bookmark_id: int, db: AsyncSession = Depends(get_db)):
         return BookmarkResponse.from_orm(bookmark)
     except HTTPException:
         raise
-    except Exception as e:
-        print(f"Error obteniendo bookmark: {e}")
-        logger.error(f"Error obteniendo bookmark: {e}")
-        raise HTTPException(status_code=500, detail=f"Error obteniendo bookmark: {str(e)}")
+    except Exception:
+        logger.exception("Error obteniendo bookmark")
+        raise HTTPException(status_code=500, detail="Error obteniendo bookmark")
 
 
 @app.get("/bookmarks", response_model=List[BookmarkResponse], tags=["Bookmarks"])
 async def list_bookmarks(
     skip: int = Query(0, ge=0),
-    limit: int = Query(50, ge=1, le=100),
+    limit: int = Query(DEFAULT_BOOKMARK_LIMIT, ge=1, le=MAX_BOOKMARK_LIMIT),
     status_filter: Optional[str] = None,
     category: Optional[str] = None,
     include_nsfw: bool = False,
@@ -1477,10 +1475,11 @@ async def list_bookmarks(
         result = await db.execute(query)
         bookmarks = result.scalars().all()
         return [BookmarkResponse.from_orm(b) for b in bookmarks]
-    except Exception as e:
-        print(f"Error listando bookmarks: {e}")
-        logger.error(f"Error listando bookmarks: {e}")
-        raise HTTPException(status_code=500, detail=f"Error listando bookmarks: {str(e)}")
+    except HTTPException:
+        raise
+    except Exception:
+        logger.exception("Error listando bookmarks")
+        raise HTTPException(status_code=500, detail="Error listando bookmarks")
 
 
 @app.get("/stats/processing", response_model=ProcessingStats, tags=["Statistics"])
@@ -1499,10 +1498,11 @@ async def get_processing_stats(db: AsyncSession = Depends(get_db)):
             failed=stats_by_status.get('failed', 0),
             manual_required=stats_by_status.get('manual_required', 0),
         )
-    except Exception as e:
-        print(f"Error obteniendo estadísticas de procesamiento: {e}")
-        logger.error(f"Error obteniendo estadísticas de procesamiento: {e}")
-        raise HTTPException(status_code=500, detail=f"Error obteniendo estadísticas: {str(e)}")
+    except HTTPException:
+        raise
+    except Exception:
+        logger.exception("Error obteniendo estadísticas de procesamiento")
+        raise HTTPException(status_code=500, detail="Error obteniendo estadísticas")
 
 
 @app.get("/stats/categories", tags=["Statistics"])
@@ -1515,10 +1515,11 @@ async def get_category_stats(db: AsyncSession = Depends(get_db)):
         )
         categories = [{"category": row.category, "count": row.count} for row in result]
         return {"categories": categories}
-    except Exception as e:
-        print(f"Error obteniendo estadísticas de categorías: {e}")
-        logger.error(f"Error obteniendo estadísticas de categorías: {e}")
-        raise HTTPException(status_code=500, detail=f"Error obteniendo estadísticas de categorías: {str(e)}")
+    except HTTPException:
+        raise
+    except Exception:
+        logger.exception("Error obteniendo estadísticas de categorías")
+        raise HTTPException(status_code=500, detail="Error obteniendo estadísticas de categorías")
 
 
 @app.get("/stats/tags", tags=["Statistics"])
@@ -1530,44 +1531,56 @@ async def get_tag_stats(limit: int = Query(20, ge=1, le=100), db: AsyncSession =
         )
         tags = [{"tag": row.tag, "count": row.count} for row in result]
         return {"tags": tags}
-    except Exception as e:
-        print(f"Error obteniendo estadísticas de tags: {e}")
-        logger.error(f"Error obteniendo estadísticas de tags: {e}")
-        raise HTTPException(status_code=500, detail=f"Error obteniendo estadísticas de tags: {str(e)}")
+    except HTTPException:
+        raise
+    except Exception:
+        logger.exception("Error obteniendo estadísticas de tags")
+        raise HTTPException(status_code=500, detail="Error obteniendo estadísticas de tags")
 
 @app.get("/export/json")
-async def export_json(db: AsyncSession = Depends(get_db)):
+async def export_json(
+    limit: int = Query(MAX_EXPORT_LIMIT, ge=1, le=MAX_EXPORT_LIMIT),
+    db: AsyncSession = Depends(get_db),
+):
     try:
-        bookmarks = await db.execute(select(Bookmark))
-        data = [b.to_dict() for b in bookmarks.scalars()]
+        result = await db.execute(select(Bookmark).order_by(Bookmark.created_at.desc()).limit(limit))
+        bookmarks = result.scalars().all()
+        data = [b.to_dict() for b in bookmarks]
         return JSONResponse(content=data)
-    except Exception as e:
-        print(f"Error exportando a JSON: {e}")
-        logger.error(f"Error exportando a JSON: {e}")
-        raise HTTPException(status_code=500, detail=f"Error exportando a JSON: {str(e)}")
+    except HTTPException:
+        raise
+    except Exception:
+        logger.exception("Error exportando a JSON")
+        raise HTTPException(status_code=500, detail="Error exportando a JSON")
 
 @app.get("/export/markdown")
-async def export_markdown(db: AsyncSession = Depends(get_db)):
+async def export_markdown(
+    limit: int = Query(MAX_EXPORT_LIMIT, ge=1, le=MAX_EXPORT_LIMIT),
+    db: AsyncSession = Depends(get_db),
+):
     try:
-        bookmarks = await db.execute(select(Bookmark))
+        result = await db.execute(select(Bookmark).order_by(Bookmark.created_at.desc()).limit(limit))
+        bookmarks = result.scalars().all()
         md = "# My Bookmarks\n\n"
-        for b in bookmarks.scalars():
-            md += f"## {b.clean_title}\n"
+        for b in bookmarks:
+            title = b.clean_title or b.original_title or "Sin título"
+            tags_str = ", ".join(b.tags) if b.tags else ""
+            md += f"## {title}\n"
             md += f"- **URL**: {b.url}\n"
             md += f"- **Category**: {b.category}\n"
-            md += f"- **Tags**: {', '.join(b.tags)}\n\n"
-            md += f"{b.summary}\n\n---\n\n"
-        
+            md += f"- **Tags**: {tags_str}\n\n"
+            md += f"{b.summary or ''}\n\n---\n\n"
         return Response(content=md, media_type="text/markdown")
-    except Exception as e:
-        print(f"Error exportando a Markdown: {e}")
-        logger.error(f"Error exportando a Markdown: {e}")
-        raise HTTPException(status_code=500, detail=f"Error exportando a Markdown: {str(e)}")
+    except HTTPException:
+        raise
+    except Exception:
+        logger.exception("Error exportando a Markdown")
+        raise HTTPException(status_code=500, detail="Error exportando a Markdown")
 
 
 @app.post("/process/{bookmark_id}", tags=["Processing"])
 @limiter.limit(settings.RATE_LIMIT_CREATE)
-async def reprocess_bookmark(req: Request, bookmark_id: int, db: AsyncSession = Depends(get_db)):
+async def reprocess_bookmark(request: Request, bookmark_id: int, db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(Bookmark).where(Bookmark.id == bookmark_id))
     bookmark = result.scalar_one_or_none()
     
@@ -1615,12 +1628,14 @@ async def reprocess_bookmark(req: Request, bookmark_id: int, db: AsyncSession = 
             "processing_time": result.get("processing_time", 0)
         }
     
+    except HTTPException:
+        raise
     except Exception as e:
-        logger.error(f"Error re-procesando bookmark {bookmark_id}: {e}")
+        logger.exception("Error re-procesando bookmark %s", bookmark_id)
         bookmark.status = "failed"
         bookmark.error_message = str(e)
         await db.commit()
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error procesando: {str(e)}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error procesando")
 
 @app.post("/admin/reembed-all")
 async def reembed_all_bookmarks(db: AsyncSession = Depends(get_db)):
@@ -1637,18 +1652,17 @@ async def reembed_all_bookmarks(db: AsyncSession = Depends(get_db)):
                 text = f"{bookmark.clean_title}. {bookmark.summary}"
                 bookmark.embedding = embedding_service.generate_embedding(text)
                 count += 1
-            except Exception as e:
-                print(f"Error generando embedding para bookmark {bookmark.id}: {e}")
-                logger.error(f"Error generando embedding para bookmark {bookmark.id}: {e}")
-        
+            except Exception:
+                logger.exception("Error generando embedding para bookmark %s", bookmark.id)
         await db.commit()
         return {"status": "success", "count": count}
-    except Exception as e:
-        print(f"Error en reembed-all: {e}")
-        logger.error(f"Error en reembed-all: {e}")
-        raise HTTPException(status_code=500, detail=f"Error regenerando embeddings: {str(e)}")
+    except HTTPException:
+        raise
+    except Exception:
+        logger.exception("Error en reembed-all")
+        raise HTTPException(status_code=500, detail="Error regenerando embeddings")
 
-    # Combinar full-text search con vectores
+
 @app.post("/search/hybrid")
 async def hybrid_search(query: str, db: AsyncSession = Depends(get_db)):
     try:
@@ -1677,10 +1691,11 @@ async def hybrid_search(query: str, db: AsyncSession = Depends(get_db)):
             "semantic": [BookmarkResponse.from_orm(b) for b in semantic_results.scalars()],
             "keyword": [BookmarkResponse.from_orm(b) for b in keyword_results.scalars()]
         }
-    except Exception as e:
-        print(f"Error en búsqueda híbrida: {e}")
-        logger.error(f"Error en búsqueda híbrida: {e}")
-        raise HTTPException(status_code=500, detail=f"Error en búsqueda híbrida: {str(e)}")
+    except HTTPException:
+        raise
+    except Exception:
+        logger.exception("Error en búsqueda híbrida")
+        raise HTTPException(status_code=500, detail="Error en búsqueda híbrida")
     
 
 @app.delete("/bookmarks/{bookmark_id}", tags=["Bookmarks"])
@@ -1697,29 +1712,14 @@ async def delete_bookmark(bookmark_id: int, db: AsyncSession = Depends(get_db)):
         return {"success": True, "message": "Bookmark eliminado"}
     except HTTPException:
         raise
-    except Exception as e:
-        print(f"Error eliminando bookmark: {e}")
-        logger.error(f"Error eliminando bookmark: {e}")
-        raise HTTPException(status_code=500, detail=f"Error eliminando bookmark: {str(e)}")
+    except Exception:
+        logger.exception("Error eliminando bookmark")
+        raise HTTPException(status_code=500, detail="Error eliminando bookmark")
 
 
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
-
-    @app.get("/settings", response_model=UserSettings)
-async def get_settings():
-    """Leer configuración actual"""
-
-@app.put("/settings")
-async def update_settings(settings: UserSettingsUpdate):
-    """
-    Actualizar settings:
-    - Groq API key
-    - Embedding model
-    - NSFW keywords
-    - Default filters
-    """
 
 
 ================================================================================
@@ -1919,10 +1919,10 @@ class SearchHistory(Base):
 
 ================================================================================
 📄 ARCHIVO: app/schemas.py
-📏 Tamaño: 3.2 KB
+📏 Tamaño: 3.3 KB
 ================================================================================
 
-from pydantic import BaseModel, HttpUrl, Field, validator
+from pydantic import BaseModel, field_validator, HttpUrl, Field, validator
 from typing import List, Optional
 from datetime import datetime
 from enum import Enum
@@ -1997,7 +1997,7 @@ class SearchRequest(BaseModel):
     category: Optional[str] = None
     tags: Optional[List[str]] = None
     
-    @validator('query')
+    @field_validator('query')
     def validate_query(cls, v):
         """Valida que la query no esté vacía"""
         if not v.strip():
@@ -2989,7 +2989,7 @@ Utilidades de la aplicación
 
 ================================================================================
 📄 ARCHIVO: app/utils/validators.py
-📏 Tamaño: 5.6 KB
+📏 Tamaño: 5.4 KB
 ⚠️  DATOS SENSIBLES ENMASCARADOS:
   ⚠️  Encontrado 1 coincidencia(s) de tipo: https?://
 ================================================================================
@@ -3164,13 +3164,7 @@ class DataValidator:
         
         if len(embedding) != expected_dim:
             return False
-        
-        # Verificar que todos sean números
-        try:
-            all(isinstance(x, (int, float)) for x in embedding)
-            return True
-        except:
-            return False
+        return all(isinstance(x, (int, float)) for x in embedding)
 
 
 # Categorías válidas del sistema
@@ -3197,8 +3191,7 @@ VALID_CATEGORIES = [
 📄 ARCHIVO: docker-compose.yml
 📏 Tamaño: 1.2 KB
 ⚠️  DATOS SENSIBLES ENMASCARADOS:
-  ⚠️  Encontrado 1 coincidencia(s) de tipo: (?i)(password|passwd|pwd)
-  ⚠️  Encontrado 1 coincidencia(s) de tipo: (?i)(database
+  ⚠️  Encontrado 2 coincidencia(s) de tipo: (?i)(password|passwd|pwd)
 ================================================================================
 
 services:
@@ -3206,9 +3199,10 @@ services:
     image: pgvector/pgvector:pg16
     container_name: neural_bookmark_db
     environment:
-      POSTGRES_USER: bookmark_user
+      POSTGRES_USER: ${POSTGRES_USER:-bookmark_user}
+      # Definir POSTGRES_PASSWORD en .env en producción
       POSTGRES_PASSWORD: "xxxxxxxxxx"
-      POSTGRES_DB: neural_bookmarks
+      POSTGRES_DB: ${POSTGRES_DB:-neural_bookmarks}
     ports:
       - "5432:5432"
     volumes:
@@ -3229,8 +3223,8 @@ services:
         condition: service_healthy
     env_file:  # ← CARGAR VARIABLES DESDE .env DEL HOST
       - .env
-    environment:  # ← SOBREESCRIBIR VARIABLES ESPECÍFICAS SI ES NECESARIO
-      DATABASE_URL: "postgresql+asyncpg://bookmark_user:xxxxxxxxxx@db:5432/neural_bookmarks
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-bookmark_user}:${POSTGRES_PASSWORD: "xxxxxxxxxx"
       ENVIRONMENT: production
     ports:
       - "8090:8000"  # HOST:8090 → CONTAINER:8000
@@ -9290,6 +9284,21 @@ export default defineConfig({
 
 
 ================================================================================
+📄 ARCHIVO: pytest.ini
+📏 Tamaño: 0.2 KB
+================================================================================
+
+[pytest]
+testpaths = tests
+python_files = test_*.py
+python_functions = test_*
+asyncio_mode = auto
+asyncio_default_fixture_loop_scope = function
+addopts = -v
+
+
+
+================================================================================
 📄 ARCHIVO: requirements.txt
 📏 Tamaño: 0.7 KB
 ================================================================================
@@ -9297,6 +9306,7 @@ export default defineConfig({
 # Core Framework
 fastapi>=0.109.1
 uvicorn[standard]==0.27.0
+slowapi>=0.1.9
 pydantic==2.5.3
 pydantic-settings==2.1.0
 
@@ -12374,21 +12384,25 @@ if __name__ == "__main__":
 
 ================================================================================
 📄 ARCHIVO: tests/conftest.py
-📏 Tamaño: 1.3 KB
+📏 Tamaño: 1.8 KB
 ⚠️  DATOS SENSIBLES ENMASCARADOS:
+  ⚠️  Encontrado 1 coincidencia(s) de tipo: https?://
   ⚠️  Encontrado 1 coincidencia(s) de tipo: (?i)(database
 ================================================================================
 
 # tests/conftest.py
 import pytest
 import asyncio
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
-from app.database import Base
+from httpx import AsyncClient
+from app.database import Base, get_db
+from app.main import app
 from app.config import get_settings
 
 settings = get_settings()
 
-# Database de prueba
+# Base de datos de prueba (crear con: createdb neural_bookmarks_test && psql -d neural_bookmarks_test -c "CREATE EXTENSION vector;")
 TEST_DATABASE_URL: "postgresql+asyncpg://bookmark_user:xxxxxxxxxx@localhost:5432/neural_bookmarks_test"
 
 @pytest.fixture(scope="session")
@@ -12402,20 +12416,22 @@ def event_loop():
 async def db_session():
     """Session de DB limpia para cada test"""
     engine = create_async_engine(TEST_DATABASE_URL, echo=False)
-    
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)
         await conn.run_sync(Base.metadata.create_all)
-        await conn.execute("CREATE EXTENSION IF NOT EXISTS vector")
-    
+        await conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
     async_session = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
-    
     async with async_session() as session:
         yield session
-    
     await engine.dispose()
 
 @pytest.fixture
+async def client(db_session):
+    """Cliente HTTP que usa la base de datos de test (db_session)."""
+    async def override_get_db():
+        yield db_session
+    app.dependency_overrides[get_db] = override_get_db
+    async with AsyncClient(app=app, base_url="https://user:xxxxxxxxxx@pytest.fixture
 def sample_bookmark_data():
     """Datos de prueba reutilizables"""
     return {
@@ -12488,9 +12504,9 @@ class TestArchivistAgent:
 
 ================================================================================
 📄 ARCHIVO: tests/integration/test_api.py
-📏 Tamaño: 4.0 KB
+📏 Tamaño: 3.7 KB
 ⚠️  DATOS SENSIBLES ENMASCARADOS:
-  ⚠️  Encontrado 11 coincidencia(s) de tipo: https?://
+  ⚠️  Encontrado 9 coincidencia(s) de tipo: https?://
 ================================================================================
 
 # tests/integration/test_api.py
@@ -12500,8 +12516,6 @@ Tests de integración para la API REST
 import pytest
 from httpx import AsyncClient
 from app.main import app
-
-
 @pytest.mark.asyncio
 async def test_health_endpoint():
     """Test del endpoint de health check"""
@@ -12509,7 +12523,7 @@ async def test_health_endpoint():
 async def test_root_endpoint():
     """Test del endpoint raíz"""
     async with AsyncClient(app=app, base_url="https://user:xxxxxxxxxx@pytest.mark.asyncio
-async def test_search_endpoint_basic(db_session):
+async def test_search_endpoint_basic(client, db_session):
     """Test básico del endpoint de búsqueda"""
     from app.models import Bookmark
     from app.services.embeddings import get_embedding_service
@@ -12518,7 +12532,7 @@ async def test_search_endpoint_basic(db_session):
     
     bookmark = Bookmark(
         url="https://user:xxxxxxxxxx@pytest.mark.asyncio
-async def test_search_with_filters(db_session):
+async def test_search_with_filters(client, db_session):
     """Test de búsqueda con filtros de categoría y tags"""
     from app.models import Bookmark
     from app.services.embeddings import get_embedding_service
@@ -12529,7 +12543,7 @@ async def test_search_with_filters(db_session):
     bookmarks = [
         Bookmark(
             url="https://user:xxxxxxxxxx@pytest.mark.asyncio
-async def test_search_nsfw_filter(db_session):
+async def test_search_nsfw_filter(client, db_session):
     """Test de filtrado de contenido NSFW en búsqueda"""
     from app.models import Bookmark
     from app.services.embeddings import get_embedding_service
@@ -12542,23 +12556,26 @@ async def test_search_nsfw_filter(db_session):
 async def test_stats_processing_endpoint():
     """Test del endpoint de estadísticas de procesamiento"""
     async with AsyncClient(app=app, base_url="https://user:xxxxxxxxxx@pytest.mark.asyncio
-async def test_stats_categories_endpoint(db_session):
+async def test_stats_categories_endpoint(client, db_session):
     """Test del endpoint de estadísticas de categorías"""
     from app.models import Bookmark
     
     # Crear bookmarks con categorías
     bookmarks = [
         Bookmark(url=f"https://user:xxxxxxxxxx@pytest.mark.asyncio
-async def test_get_bookmark_by_id(db_session):
+async def test_get_bookmark_by_id(client, db_session):
     """Test de obtener bookmark por ID"""
     from app.models import Bookmark
     
     bookmark = Bookmark(
         url="https://user:xxxxxxxxxx@pytest.mark.asyncio
-async def test_get_bookmark_not_found():
+async def test_get_bookmark_not_found(client):
     """Test de bookmark no encontrado"""
-    async with AsyncClient(app=app, base_url="https://user:xxxxxxxxxx@pytest.mark.asyncio
-async def test_list_bookmarks(db_session):
+
+    response = await client.get("/bookmarks/99999")
+    assert response.status_code == 404
+@pytest.mark.asyncio
+async def test_list_bookmarks(client, db_session):
     """Test de listar bookmarks con paginación"""
     from app.models import Bookmark
     
@@ -12566,10 +12583,7 @@ async def test_list_bookmarks(db_session):
     for i in range(5):
         bookmark = Bookmark(
             url=f"https://user:xxxxxxxxxx@pytest.mark.asyncio
-async def test_search_empty_query():
-    """Test de búsqueda con query vacía"""
-    async with AsyncClient(app=app, base_url="https://user:xxxxxxxxxx@pytest.mark.asyncio
-async def test_search_similarity_scores(db_session):
+async def test_search_similarity_scores(client, db_session):
     """Test de que los scores de similitud están en el rango correcto"""
     from app.models import Bookmark
     from app.services.embeddings import get_embedding_service
@@ -12578,27 +12592,23 @@ async def test_search_similarity_scores(db_session):
     
     bookmark = Bookmark(
         url="https://test.com/similarity",
+        original_title="Machine Learning Tutorial",
         clean_title="Machine Learning Tutorial",
         status="completed",
         embedding=embedding_service.generate_embedding("Machine Learning Tutorial")
     )
     db_session.add(bookmark)
     await db_session.commit()
-    
-    async with AsyncClient(app=app, base_url="http://test") as client:
-        response = await client.post(
-            "/search",
-            json={"query": "machine learning", "limit": 5}
-        )
-        assert response.status_code == 200
-        data = response.json()
-        
-        # Verificar que los similarity scores están en el rango [0, 1]
-        for result in data["results"]:
-            score = result["similarity_score"]
-            assert 0.0 <= score <= 1.0
 
-
+    response = await client.post(
+        "/search",
+        json={"query": "machine learning", "limit": 5}
+    )
+    assert response.status_code == 200
+    data = response.json()
+    for result in data["results"]:
+        score = result["similarity_score"]
+        assert 0.0 <= score <= 1.0
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
 

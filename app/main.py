@@ -1,6 +1,6 @@
 from fastapi import FastAPI, Depends, HTTPException, Query, status, BackgroundTasks, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, and_, or_, text
 from typing import List, Optional
@@ -54,9 +54,10 @@ app = FastAPI(
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
+_cors_origins = ["*"] if settings.CORS_ORIGINS.strip() == "*" else [o.strip() for o in settings.CORS_ORIGINS.split(",") if o.strip()]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=_cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -110,74 +111,18 @@ async def health_check(db: AsyncSession = Depends(get_db)):
         version="1.0.0",
         timestamp=datetime.now()
     )
-@app.post("/import/csv", response_model=ImportJobResponse)
-async def import_csv_upload(
-    file: UploadFile = File(...),
-    batch_size: int = Query(10, ge=1, le=50),
-    background_tasks: BackgroundTasks
-):
-    """
-    Importar CSV desde UI
-    - Sube archivo
-    - Valida formato
-    - Encola procesamiento async
-    - Retorna job_id para tracking
-    """
-    # 1. Validar CSV
-    # 2. Guardar en /tmp
-    # 3. Crear ImportJob en DB
-    # 4. Encolar en background
-    # 5. Retornar job_id
 
-@app.get("/import/status/{job_id}")
-async def import_status(job_id: str):
-c
-    Tracking de importación en tiempo real
-    Output: {
-        job_id, status, 
-        total, processed, failed,
-        progress_percent,
-        eta_seconds
-    }
-@app.post("/import/csv", response_model=ImportJobResponse)
-async def import_csv_upload(
-    file: UploadFile = File(...),
-    batch_size: int = Query(10, ge=1, le=50),
-    background_tasks: BackgroundTasks
-):
-    """
-    Importar CSV desde UI
-    - Sube archivo
-    - Valida formato
-    - Encola procesamiento async
-    - Retorna job_id para tracking
-    """
-    # 1. Validar CSV
-    # 2. Guardar en /tmp
-    # 3. Crear ImportJob en DB
-    # 4. Encolar en background
-    # 5. Retornar job_id
 
-@app.get("/import/status/{job_id}")
-async def import_status(job_id: str):
-    """
-    Tracking de importación en tiempo real
-    Output: {
-        job_id, status, 
-        total, processed, failed,
-        progress_percent,
-        eta_seconds
-    }
-    """
-    # 1. Consultar ImportJob por job_id
-    # 2. Retornar status y progreso
-    pass
+# --- Constantes de paginación y exportación ---
+DEFAULT_BOOKMARK_LIMIT = 50
+MAX_BOOKMARK_LIMIT = 100
+MAX_EXPORT_LIMIT = 10_000
 
-### NEW: Endpoint para crear bookmarks ###
+
 @app.post("/bookmarks", response_model=BookmarkResponse, status_code=status.HTTP_201_CREATED, tags=["Bookmarks"])
 @limiter.limit(settings.RATE_LIMIT_CREATE)
 async def create_bookmark(
-    req: Request,
+    request: Request,
     bookmark_in: BookmarkCreate,
     background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db)
@@ -217,11 +162,10 @@ async def create_bookmark(
     except HTTPException:
         raise
     except Exception as e:
-        print(f"Error creando bookmark: {e}")
-        logger.error(f"Error creando bookmark: {e}")
-        raise HTTPException(status_code=500, detail=f"Error creando bookmark: {str(e)}")
+        logger.exception("Error creando bookmark")
+        raise HTTPException(status_code=500, detail="Error creando bookmark")
 
-async def process_bookmark_background(bookmark_id: int):
+async def process_bookmark_background(bookmark_id: int) -> None:
     # Wrapper simple para procesar en background sin bloquear request
     # Requiere crear una nueva sesión ya que la anterior se cierra
     # NOTA: Para simplificar este fix, confiamos en el script reprocess_failed.py
@@ -233,33 +177,33 @@ async def process_bookmark_background(bookmark_id: int):
 @app.post("/search", response_model=SearchResponse, tags=["Search"])
 @limiter.limit(settings.RATE_LIMIT_SEARCH)
 async def semantic_search(
-    req: Request,
-    request: SearchRequest,
+    request: Request,
+    search_request: SearchRequest,
     db: AsyncSession = Depends(get_db)
 ):
     start_time = datetime.now()
     
     try:
-        logger.info(f"🔍 Búsqueda: '{request.query}' (limit: {request.limit})")
+        logger.info(f"🔍 Búsqueda: '{search_request.query}' (limit: {search_request.limit})")
         
         embedding_service = get_embedding_service()
-        query_embedding = embedding_service.generate_query_embedding(request.query)
+        query_embedding = embedding_service.generate_query_embedding(search_request.query)
         
         query_stmt = select(Bookmark).where(Bookmark.status == "completed")
         
-        if not request.include_nsfw:
+        if not search_request.include_nsfw:
             query_stmt = query_stmt.where(Bookmark.is_nsfw == False)
         
-        if request.category:
-            query_stmt = query_stmt.where(Bookmark.category == request.category)
+        if search_request.category:
+            query_stmt = query_stmt.where(Bookmark.category == search_request.category)
         
-        if request.tags:
-            tag_conditions = [Bookmark.tags.contains([tag]) for tag in request.tags]
+        if search_request.tags:
+            tag_conditions = [Bookmark.tags.contains([tag]) for tag in search_request.tags]
             query_stmt = query_stmt.where(or_(*tag_conditions))
         
         query_stmt = query_stmt.order_by(
             Bookmark.embedding.cosine_distance(query_embedding)
-        ).limit(request.limit)
+        ).limit(search_request.limit)
         
         result = await db.execute(query_stmt)
         bookmarks = result.scalars().all()
@@ -290,7 +234,7 @@ async def semantic_search(
             )
         
         search_history = SearchHistory(
-            query=request.query,
+            query=search_request.query,
             results_count=len(search_results)
         )
         db.add(search_history)
@@ -299,20 +243,19 @@ async def semantic_search(
         execution_time = (datetime.now() - start_time).total_seconds()
         
         return SearchResponse(
-            query=request.query,
+            query=search_request.query,
             results=search_results,
             total=len(search_results),
             execution_time=execution_time
         )
     
-    except Exception as e:
-        logger.error(f"Error en búsqueda: {e}")
-        # Log completo para debug
-        import traceback
-        traceback.print_exc()
+    except HTTPException:
+        raise
+    except Exception:
+        logger.exception("Error en búsqueda")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error en búsqueda: {str(e)}"
+            detail="Error en búsqueda",
         )
 
 
@@ -326,16 +269,15 @@ async def get_bookmark(bookmark_id: int, db: AsyncSession = Depends(get_db)):
         return BookmarkResponse.from_orm(bookmark)
     except HTTPException:
         raise
-    except Exception as e:
-        print(f"Error obteniendo bookmark: {e}")
-        logger.error(f"Error obteniendo bookmark: {e}")
-        raise HTTPException(status_code=500, detail=f"Error obteniendo bookmark: {str(e)}")
+    except Exception:
+        logger.exception("Error obteniendo bookmark")
+        raise HTTPException(status_code=500, detail="Error obteniendo bookmark")
 
 
 @app.get("/bookmarks", response_model=List[BookmarkResponse], tags=["Bookmarks"])
 async def list_bookmarks(
     skip: int = Query(0, ge=0),
-    limit: int = Query(50, ge=1, le=100),
+    limit: int = Query(DEFAULT_BOOKMARK_LIMIT, ge=1, le=MAX_BOOKMARK_LIMIT),
     status_filter: Optional[str] = None,
     category: Optional[str] = None,
     include_nsfw: bool = False,
@@ -354,10 +296,11 @@ async def list_bookmarks(
         result = await db.execute(query)
         bookmarks = result.scalars().all()
         return [BookmarkResponse.from_orm(b) for b in bookmarks]
-    except Exception as e:
-        print(f"Error listando bookmarks: {e}")
-        logger.error(f"Error listando bookmarks: {e}")
-        raise HTTPException(status_code=500, detail=f"Error listando bookmarks: {str(e)}")
+    except HTTPException:
+        raise
+    except Exception:
+        logger.exception("Error listando bookmarks")
+        raise HTTPException(status_code=500, detail="Error listando bookmarks")
 
 
 @app.get("/stats/processing", response_model=ProcessingStats, tags=["Statistics"])
@@ -376,10 +319,11 @@ async def get_processing_stats(db: AsyncSession = Depends(get_db)):
             failed=stats_by_status.get('failed', 0),
             manual_required=stats_by_status.get('manual_required', 0),
         )
-    except Exception as e:
-        print(f"Error obteniendo estadísticas de procesamiento: {e}")
-        logger.error(f"Error obteniendo estadísticas de procesamiento: {e}")
-        raise HTTPException(status_code=500, detail=f"Error obteniendo estadísticas: {str(e)}")
+    except HTTPException:
+        raise
+    except Exception:
+        logger.exception("Error obteniendo estadísticas de procesamiento")
+        raise HTTPException(status_code=500, detail="Error obteniendo estadísticas")
 
 
 @app.get("/stats/categories", tags=["Statistics"])
@@ -392,10 +336,11 @@ async def get_category_stats(db: AsyncSession = Depends(get_db)):
         )
         categories = [{"category": row.category, "count": row.count} for row in result]
         return {"categories": categories}
-    except Exception as e:
-        print(f"Error obteniendo estadísticas de categorías: {e}")
-        logger.error(f"Error obteniendo estadísticas de categorías: {e}")
-        raise HTTPException(status_code=500, detail=f"Error obteniendo estadísticas de categorías: {str(e)}")
+    except HTTPException:
+        raise
+    except Exception:
+        logger.exception("Error obteniendo estadísticas de categorías")
+        raise HTTPException(status_code=500, detail="Error obteniendo estadísticas de categorías")
 
 
 @app.get("/stats/tags", tags=["Statistics"])
@@ -407,44 +352,56 @@ async def get_tag_stats(limit: int = Query(20, ge=1, le=100), db: AsyncSession =
         )
         tags = [{"tag": row.tag, "count": row.count} for row in result]
         return {"tags": tags}
-    except Exception as e:
-        print(f"Error obteniendo estadísticas de tags: {e}")
-        logger.error(f"Error obteniendo estadísticas de tags: {e}")
-        raise HTTPException(status_code=500, detail=f"Error obteniendo estadísticas de tags: {str(e)}")
+    except HTTPException:
+        raise
+    except Exception:
+        logger.exception("Error obteniendo estadísticas de tags")
+        raise HTTPException(status_code=500, detail="Error obteniendo estadísticas de tags")
 
 @app.get("/export/json")
-async def export_json(db: AsyncSession = Depends(get_db)):
+async def export_json(
+    limit: int = Query(MAX_EXPORT_LIMIT, ge=1, le=MAX_EXPORT_LIMIT),
+    db: AsyncSession = Depends(get_db),
+):
     try:
-        bookmarks = await db.execute(select(Bookmark))
-        data = [b.to_dict() for b in bookmarks.scalars()]
+        result = await db.execute(select(Bookmark).order_by(Bookmark.created_at.desc()).limit(limit))
+        bookmarks = result.scalars().all()
+        data = [b.to_dict() for b in bookmarks]
         return JSONResponse(content=data)
-    except Exception as e:
-        print(f"Error exportando a JSON: {e}")
-        logger.error(f"Error exportando a JSON: {e}")
-        raise HTTPException(status_code=500, detail=f"Error exportando a JSON: {str(e)}")
+    except HTTPException:
+        raise
+    except Exception:
+        logger.exception("Error exportando a JSON")
+        raise HTTPException(status_code=500, detail="Error exportando a JSON")
 
 @app.get("/export/markdown")
-async def export_markdown(db: AsyncSession = Depends(get_db)):
+async def export_markdown(
+    limit: int = Query(MAX_EXPORT_LIMIT, ge=1, le=MAX_EXPORT_LIMIT),
+    db: AsyncSession = Depends(get_db),
+):
     try:
-        bookmarks = await db.execute(select(Bookmark))
+        result = await db.execute(select(Bookmark).order_by(Bookmark.created_at.desc()).limit(limit))
+        bookmarks = result.scalars().all()
         md = "# My Bookmarks\n\n"
-        for b in bookmarks.scalars():
-            md += f"## {b.clean_title}\n"
+        for b in bookmarks:
+            title = b.clean_title or b.original_title or "Sin título"
+            tags_str = ", ".join(b.tags) if b.tags else ""
+            md += f"## {title}\n"
             md += f"- **URL**: {b.url}\n"
             md += f"- **Category**: {b.category}\n"
-            md += f"- **Tags**: {', '.join(b.tags)}\n\n"
-            md += f"{b.summary}\n\n---\n\n"
-        
+            md += f"- **Tags**: {tags_str}\n\n"
+            md += f"{b.summary or ''}\n\n---\n\n"
         return Response(content=md, media_type="text/markdown")
-    except Exception as e:
-        print(f"Error exportando a Markdown: {e}")
-        logger.error(f"Error exportando a Markdown: {e}")
-        raise HTTPException(status_code=500, detail=f"Error exportando a Markdown: {str(e)}")
+    except HTTPException:
+        raise
+    except Exception:
+        logger.exception("Error exportando a Markdown")
+        raise HTTPException(status_code=500, detail="Error exportando a Markdown")
 
 
 @app.post("/process/{bookmark_id}", tags=["Processing"])
 @limiter.limit(settings.RATE_LIMIT_CREATE)
-async def reprocess_bookmark(req: Request, bookmark_id: int, db: AsyncSession = Depends(get_db)):
+async def reprocess_bookmark(request: Request, bookmark_id: int, db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(Bookmark).where(Bookmark.id == bookmark_id))
     bookmark = result.scalar_one_or_none()
     
@@ -492,12 +449,14 @@ async def reprocess_bookmark(req: Request, bookmark_id: int, db: AsyncSession = 
             "processing_time": result.get("processing_time", 0)
         }
     
+    except HTTPException:
+        raise
     except Exception as e:
-        logger.error(f"Error re-procesando bookmark {bookmark_id}: {e}")
+        logger.exception("Error re-procesando bookmark %s", bookmark_id)
         bookmark.status = "failed"
         bookmark.error_message = str(e)
         await db.commit()
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error procesando: {str(e)}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error procesando")
 
 @app.post("/admin/reembed-all")
 async def reembed_all_bookmarks(db: AsyncSession = Depends(get_db)):
@@ -514,18 +473,17 @@ async def reembed_all_bookmarks(db: AsyncSession = Depends(get_db)):
                 text = f"{bookmark.clean_title}. {bookmark.summary}"
                 bookmark.embedding = embedding_service.generate_embedding(text)
                 count += 1
-            except Exception as e:
-                print(f"Error generando embedding para bookmark {bookmark.id}: {e}")
-                logger.error(f"Error generando embedding para bookmark {bookmark.id}: {e}")
-        
+            except Exception:
+                logger.exception("Error generando embedding para bookmark %s", bookmark.id)
         await db.commit()
         return {"status": "success", "count": count}
-    except Exception as e:
-        print(f"Error en reembed-all: {e}")
-        logger.error(f"Error en reembed-all: {e}")
-        raise HTTPException(status_code=500, detail=f"Error regenerando embeddings: {str(e)}")
+    except HTTPException:
+        raise
+    except Exception:
+        logger.exception("Error en reembed-all")
+        raise HTTPException(status_code=500, detail="Error regenerando embeddings")
 
-    # Combinar full-text search con vectores
+
 @app.post("/search/hybrid")
 async def hybrid_search(query: str, db: AsyncSession = Depends(get_db)):
     try:
@@ -554,10 +512,11 @@ async def hybrid_search(query: str, db: AsyncSession = Depends(get_db)):
             "semantic": [BookmarkResponse.from_orm(b) for b in semantic_results.scalars()],
             "keyword": [BookmarkResponse.from_orm(b) for b in keyword_results.scalars()]
         }
-    except Exception as e:
-        print(f"Error en búsqueda híbrida: {e}")
-        logger.error(f"Error en búsqueda híbrida: {e}")
-        raise HTTPException(status_code=500, detail=f"Error en búsqueda híbrida: {str(e)}")
+    except HTTPException:
+        raise
+    except Exception:
+        logger.exception("Error en búsqueda híbrida")
+        raise HTTPException(status_code=500, detail="Error en búsqueda híbrida")
     
 
 @app.delete("/bookmarks/{bookmark_id}", tags=["Bookmarks"])
@@ -574,26 +533,11 @@ async def delete_bookmark(bookmark_id: int, db: AsyncSession = Depends(get_db)):
         return {"success": True, "message": "Bookmark eliminado"}
     except HTTPException:
         raise
-    except Exception as e:
-        print(f"Error eliminando bookmark: {e}")
-        logger.error(f"Error eliminando bookmark: {e}")
-        raise HTTPException(status_code=500, detail=f"Error eliminando bookmark: {str(e)}")
+    except Exception:
+        logger.exception("Error eliminando bookmark")
+        raise HTTPException(status_code=500, detail="Error eliminando bookmark")
 
 
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
-
-    @app.get("/settings", response_model=UserSettings)
-async def get_settings():
-    """Leer configuración actual"""
-
-@app.put("/settings")
-async def update_settings(settings: UserSettingsUpdate):
-    """
-    Actualizar settings:
-    - Groq API key
-    - Embedding model
-    - NSFW keywords
-    - Default filters
-    """

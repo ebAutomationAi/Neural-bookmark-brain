@@ -1,4 +1,4 @@
-from pydantic import BaseModel, HttpUrl, Field, validator
+from pydantic import BaseModel, field_validator, HttpUrl, Field, validator
 from typing import List, Optional
 from datetime import datetime
 from enum import Enum
@@ -73,7 +73,7 @@ class SearchRequest(BaseModel):
     category: Optional[str] = None
     tags: Optional[List[str]] = None
     
-    @validator('query')
+    @field_validator('query')
     def validate_query(cls, v):
         """Valida que la query no esté vacía"""
         if not v.strip():

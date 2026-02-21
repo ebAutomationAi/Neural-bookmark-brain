@@ -1,0 +1,9 @@
+---
+alwaysApply: true
+---
+
+When generating or modifying Python code:
+- Follow PEP8 conventions.
+- Prefer type hints.
+- Keep FastAPI routers modular.
+- Avoid introducing unnecessary dependencies.
