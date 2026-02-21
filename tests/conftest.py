@@ -27,72 +27,29 @@ def event_loop():
 
 @pytest_asyncio.fixture(scope="function")
 async def db_session():
-    """Session de DB limpia para cada test"""
-    engine = create_async_engine(TEST_DATABASE_URL, echo=False)
-    
-    async with engine.begin() as conn:
-        # FIX: Dropear TODO en orden correcto - primero índices, luego tablas
-        # Usar CASCADE para forzar eliminación de dependencias
-        
-        # 1. Dropear índices manualmente primero (evita errores de "already exists")
-        await conn.execute(text("""
-            DO $$ 
-            BEGIN
-                -- Dropear todos los índices de bookmarks si existen
-                IF EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'ix_bookmarks_domain') THEN
-                    EXECUTE 'DROP INDEX IF EXISTS ix_bookmarks_domain CASCADE';
-                END IF;
-                
-                IF EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'ix_bookmarks_status') THEN
-                    EXECUTE 'DROP INDEX IF EXISTS ix_bookmarks_status CASCADE';
-                END IF;
-                
-                IF EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'ix_bookmarks_category') THEN
-                    EXECUTE 'DROP INDEX IF EXISTS ix_bookmarks_category CASCADE';
-                END IF;
-                
-                IF EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'ix_bookmarks_nsfw') THEN
-                    EXECUTE 'DROP INDEX IF EXISTS ix_bookmarks_nsfw CASCADE';
-                END IF;
-                
-                IF EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'ix_bookmarks_created_at') THEN
-                    EXECUTE 'DROP INDEX IF EXISTS ix_bookmarks_created_at CASCADE';
-                END IF;
-            END $$;
-        """))
-        
-        # 2. Dropear tablas en orden correcto (dependencias primero)
-        await conn.execute(text("DROP TABLE IF EXISTS processing_log CASCADE"))
-        await conn.execute(text("DROP TABLE IF EXISTS search_history CASCADE"))
-        await conn.execute(text("DROP TABLE IF EXISTS bookmarks CASCADE"))
-        await conn.execute(text("DROP TABLE IF EXISTS alembic_version CASCADE"))
-        
-        # 3. Limpiar cualquier tabla residual que pueda quedar
-        await conn.execute(text("""
-            DO $$
-            DECLARE
-                r RECORD;
-            BEGIN
-                FOR r IN (SELECT tablename FROM pg_tables WHERE schemaname = 'public') LOOP
-                    EXECUTE 'DROP TABLE IF EXISTS ' || quote_ident(r.tablename) || ' CASCADE';
-                END LOOP;
-            END $$;
-        """))
-        
-        # 4. Crear extensión vector primero
+    """
+    Proporciona una sesión de base de datos limpia para cada test.
+    El esquema se recrea completamente antes de la sesión del test.
+    """
+    # --- 1. Resetear completamente la base de datos en una transacción separada ---
+    clean_engine = create_async_engine(TEST_DATABASE_URL, echo=False)
+    async with clean_engine.begin() as conn:
+        # Eliminar todo el esquema público y recrearlo
+        await conn.execute(text("DROP SCHEMA public CASCADE"))
+        await conn.execute(text("CREATE SCHEMA public"))
+        # Re-habilitar la extensión pgvector (necesaria para los campos Vector)
         await conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
-        
-        # 5. Crear todo el schema fresco
-        def create_all_safe(conn):
-            # Sin checkfirst - queremos crear todo de cero
-            Base.metadata.create_all(conn)
-        
-        await conn.run_sync(create_all_safe)
-    
+        # Crear todas las tablas desde cero
+        await conn.run_sync(Base.metadata.create_all)
+    # La transacción se confirma automáticamente al salir del bloque
+    await clean_engine.dispose()
+
+    # --- 2. Crear el motor y la sesión que usará el test ---
+    engine = create_async_engine(TEST_DATABASE_URL, echo=False)
     async_session = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
     async with async_session() as session:
         yield session
-    
+
     await engine.dispose()
 
 
@@ -103,13 +60,13 @@ async def client(db_session):
         yield db_session
 
     app.dependency_overrides[get_db] = override_get_db
-    
+
     async with AsyncClient(
         transport=ASGITransport(app=app),
         base_url="http://test"
     ) as ac:
         yield ac
-    
+
     app.dependency_overrides.clear()
 
 
