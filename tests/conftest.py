@@ -11,8 +11,6 @@ from app.config import get_settings
 
 settings = get_settings()
 
-# FIX: era ":" (anotación de tipo) en vez de "=" (asignación).
-# TEST_DATABASE_URL: "postgresql+..." → variable siempre None → engine falla.
 TEST_DATABASE_URL = (
     "postgresql+asyncpg://bookmark_user:bookmark_pass_2024"
     "@localhost:5432/neural_bookmarks_test"
@@ -21,7 +19,7 @@ TEST_DATABASE_URL = (
 
 @pytest.fixture(scope="session")
 def event_loop():
-    """Event loop para tests async - DEPRECATED: usar pytest_asyncio.fixture"""
+    """Event loop para tests async"""
     loop = asyncio.get_event_loop_policy().new_event_loop()
     yield loop
     loop.close()
@@ -33,22 +31,63 @@ async def db_session():
     engine = create_async_engine(TEST_DATABASE_URL, echo=False)
     
     async with engine.begin() as conn:
-        # FIX: Usar Base.metadata.drop_all para limpiar TODO (tablas + índices)
-        await conn.run_sync(Base.metadata.drop_all)
+        # FIX: Dropear TODO en orden correcto - primero índices, luego tablas
+        # Usar CASCADE para forzar eliminación de dependencias
         
-        # FIX: Dropear tablas manualmente UNA POR UNA (no múltiples comandos)
-        # asyncpg no soporta múltiples comandos en un prepared statement
-        await conn.execute(text("DROP TABLE IF EXISTS bookmarks CASCADE"))
-        await conn.execute(text("DROP TABLE IF EXISTS search_history CASCADE"))
+        # 1. Dropear índices manualmente primero (evita errores de "already exists")
+        await conn.execute(text("""
+            DO $$ 
+            BEGIN
+                -- Dropear todos los índices de bookmarks si existen
+                IF EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'ix_bookmarks_domain') THEN
+                    EXECUTE 'DROP INDEX IF EXISTS ix_bookmarks_domain CASCADE';
+                END IF;
+                
+                IF EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'ix_bookmarks_status') THEN
+                    EXECUTE 'DROP INDEX IF EXISTS ix_bookmarks_status CASCADE';
+                END IF;
+                
+                IF EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'ix_bookmarks_category') THEN
+                    EXECUTE 'DROP INDEX IF EXISTS ix_bookmarks_category CASCADE';
+                END IF;
+                
+                IF EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'ix_bookmarks_nsfw') THEN
+                    EXECUTE 'DROP INDEX IF EXISTS ix_bookmarks_nsfw CASCADE';
+                END IF;
+                
+                IF EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'ix_bookmarks_created_at') THEN
+                    EXECUTE 'DROP INDEX IF EXISTS ix_bookmarks_created_at CASCADE';
+                END IF;
+            END $$;
+        """))
+        
+        # 2. Dropear tablas en orden correcto (dependencias primero)
         await conn.execute(text("DROP TABLE IF EXISTS processing_log CASCADE"))
+        await conn.execute(text("DROP TABLE IF EXISTS search_history CASCADE"))
+        await conn.execute(text("DROP TABLE IF EXISTS bookmarks CASCADE"))
         await conn.execute(text("DROP TABLE IF EXISTS alembic_version CASCADE"))
         
-        # FIX: Crear con checkfirst=True para evitar "already exists"
+        # 3. Limpiar cualquier tabla residual que pueda quedar
+        await conn.execute(text("""
+            DO $$
+            DECLARE
+                r RECORD;
+            BEGIN
+                FOR r IN (SELECT tablename FROM pg_tables WHERE schemaname = 'public') LOOP
+                    EXECUTE 'DROP TABLE IF EXISTS ' || quote_ident(r.tablename) || ' CASCADE';
+                END LOOP;
+            END $$;
+        """))
+        
+        # 4. Crear extensión vector primero
+        await conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
+        
+        # 5. Crear todo el schema fresco
         def create_all_safe(conn):
-            Base.metadata.create_all(conn, checkfirst=True)
+            # Sin checkfirst - queremos crear todo de cero
+            Base.metadata.create_all(conn)
         
         await conn.run_sync(create_all_safe)
-        await conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
     
     async_session = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
     async with async_session() as session:
