@@ -36,13 +36,12 @@ async def db_session():
         # FIX: Usar Base.metadata.drop_all para limpiar TODO (tablas + índices)
         await conn.run_sync(Base.metadata.drop_all)
         
-        # Dropear tablas manualmente como respaldo (por si acaso)
-        await conn.execute(text("""
-            DROP TABLE IF EXISTS bookmarks CASCADE;
-            DROP TABLE IF EXISTS search_history CASCADE;
-            DROP TABLE IF EXISTS processing_log CASCADE;
-            DROP TABLE IF EXISTS alembic_version CASCADE;
-        """))
+        # FIX: Dropear tablas manualmente UNA POR UNA (no múltiples comandos)
+        # asyncpg no soporta múltiples comandos en un prepared statement
+        await conn.execute(text("DROP TABLE IF EXISTS bookmarks CASCADE"))
+        await conn.execute(text("DROP TABLE IF EXISTS search_history CASCADE"))
+        await conn.execute(text("DROP TABLE IF EXISTS processing_log CASCADE"))
+        await conn.execute(text("DROP TABLE IF EXISTS alembic_version CASCADE"))
         
         # FIX: Crear con checkfirst=True para evitar "already exists"
         def create_all_safe(conn):
